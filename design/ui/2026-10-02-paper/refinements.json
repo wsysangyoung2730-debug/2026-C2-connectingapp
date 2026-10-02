@@ -1,0 +1,23 @@
+{
+  "tool": "built-in image_gen.imagegen",
+  "purpose": "Keep profile/avatar/chip grouping continuous across pull-up states; correct fully expanded handle direction.",
+  "repairs": [
+    {
+      "id": "02-home-pullup",
+      "prompt": "Use case: ui-mockup. Targeted consistency edit of image 1 (the mid-pull-up screenshot). Image 2 is the home screenshot and the canonical layout for the profile/chips group. Keep ALL visual styling, colors, paper arch, envelope pocket geometry, home background, scrim, glass navigation, typeface, Korean copy and screen dimensions of image 1. Change ONLY the internal identity group on the lifted white letter, to match the group in image 2:\n1. Remove the large centered \"나의 관심사\" title sitting above the avatar and remove the centered standalone avatar arrangement.\n2. Put the circle avatar \"상\" to the LEFT of the title \"나의 관심사\" on ONE HORIZONTAL ROW centered on the letter, exactly as the home reference. Use the same compact avatar size and same title weight as image 2. Below this row, keep chips \"독서\", \"산책\", \"음악\" in ONE centered row, same sequence/relative spacing as image 2. All three chips are the same neutral warm beige as home, no one chip highlighted orange.\n3. Place \"내가 좋아하는 이야기로 나를 소개해요\" as a small helper line AFTER the chips. Below that retain the \"관심사 편집\" button and \"더 올리거나 눌러서 편집해요\". Everything fits above the anchored envelope front without overlap.\nKeep the existing upward chevron handle and hint at the top. The shape and content group must look like the EXACT SAME letter lifted vertically out of the home envelope. No other changes; no new cards, no new widgets. Preserve legible Korean. Output the single updated portrait screen only.",
+      "referencePaths": [
+        "/Users/sangyoung/.codex/generated_images/01a0fbf0-e23b-7970-947f-0cf0bc8e4c50/exec-0adc4930-063a-4889-8258-907ef10b1c4e.png",
+        "/Users/sangyoung/.codex/generated_images/01a0fbf0-e23b-7970-947f-0cf0bc8e4c50/exec-8bb3ce17-0596-4f01-bf22-7c508d086398.png"
+      ]
+    },
+    {
+      "id": "03-interests-expanded",
+      "prompt": "Use case: ui-mockup. Targeted consistency edit of image 1, the fully expanded custom interest sheet. Image 2 is home and the canonical identity-group layout. Preserve image 1's screen size, ivory arched paper sheet, kraft envelope fixed at bottom, background scrim, top cancel/save actions, headline, search, recommendation chips, footer note, exact colors/fonts and all Korean text except the small redundant centered toolbar title described below.\nChange ONLY the avatar/title/chips grouping and expanded handle affordance:\n- Make the terracotta circle handle at top show a DOWNWARD chevron (fully expanded state can collapse).\n- Toolbar stays \"취소\" left and \"저장\" right, remove the centered \"나의 관심사\" from this toolbar to avoid duplicate headings.\n- Keep headline \"어떤 이야기를 좋아하나요?\".\n- Beneath headline reproduce the HOME group: small circular avatar \"상\" LEFT of title \"나의 관심사\" on ONE centered horizontal row. Directly BELOW that row, show selected chips \"독서 ×\", \"산책 ×\", \"음악 ×\" on a single centered row, matching the home chips' spacing and neutral beige color. This group must not be a left avatar with chips to its right.\n- Under chips the smaller count \"3개 선택 · 최대 6개\". Move search field and recommendations down just enough to keep 20pt breathing space; all controls remain visible above envelope and safe area.\nNo bright glass bottom navigation in this focused editor. No other changes. Render accurate Korean without clipping. Output one updated portrait screen.",
+      "referencePaths": [
+        "/Users/sangyoung/.codex/generated_images/01a0fbf0-e23b-7970-947f-0cf0bc8e4c50/exec-7dd9e801-3d0f-4d98-ae82-215beb4ea052.png",
+        "/Users/sangyoung/.codex/generated_images/01a0fbf0-e23b-7970-947f-0cf0bc8e4c50/exec-8bb3ce17-0596-4f01-bf22-7c508d086398.png"
+      ]
+    }
+  ]
+}
+
