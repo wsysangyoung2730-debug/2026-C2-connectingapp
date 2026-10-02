@@ -8,6 +8,7 @@ struct InterestBottomSheet: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Query(sort: \InterestSelection.updatedAt, order: .reverse) private var selections: [InterestSelection]
     @AppStorage("profileName") private var profileName = "나"
     @FocusState private var searchIsFocused: Bool
@@ -27,6 +28,8 @@ struct InterestBottomSheet: View {
     private var savedSelection: InterestSelection? { selections.first }
     private var savedTags: [String] { savedSelection?.tags ?? [] }
     private var visibleTags: [String] { sheetState == .expanded ? workingTags : savedTags }
+    private var pocketHeight: CGFloat { sheetState == .expanded ? 38 : 66 }
+    private var usesAccessibleSummary: Bool { dynamicTypeSize.isAccessibilitySize && sheetState == .collapsed }
     private var animation: Animation? {
         reduceMotion ? .easeOut(duration: 0.12) : .spring(response: 0.4, dampingFraction: 0.86)
     }
@@ -46,7 +49,7 @@ struct InterestBottomSheet: View {
                     .frame(height: visibleHeight)
 
                 InterestEnvelopePocket()
-                    .frame(height: sheetState == .expanded ? 38 : 66)
+                    .frame(height: pocketHeight)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
             }
@@ -79,7 +82,7 @@ struct InterestBottomSheet: View {
 
     private func envelopePaper(height: CGFloat) -> some View {
         ScrollView {
-            VStack(spacing: 16) {
+            VStack(spacing: usesAccessibleSummary ? 8 : 16) {
                 if sheetState == .expanded {
                     HStack {
                         Button("취소") { move(to: .collapsed) }
@@ -97,8 +100,8 @@ struct InterestBottomSheet: View {
 
                 HStack(spacing: 12) {
                     NaldamAvatar(name: profileName, size: 44)
-                    Text("나의 관심사")
-                        .font(.title3.weight(.bold))
+                    Text(usesAccessibleSummary ? "관심사" : "나의 관심사")
+                        .font(usesAccessibleSummary ? .headline.weight(.bold) : .title3.weight(.bold))
                         .foregroundStyle(Color.naldamInk)
                 }
                 .accessibilityElement(children: .combine)
@@ -126,13 +129,16 @@ struct InterestBottomSheet: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 26)
-            .padding(.top, 70)
-            .padding(.bottom, sheetState == .expanded ? 58 : 82)
+            .padding(.top, usesAccessibleSummary ? 56 : 70)
+            .padding(.bottom, sheetState == .collapsed ? 0 : 24)
         }
         .scrollDisabled(sheetState == .collapsed)
         .scrollIndicators(.hidden)
         .scrollDismissesKeyboard(.interactively)
-        .frame(height: height)
+        // The scroll viewport ends above the decorative pocket, so controls can never
+        // scroll underneath it. Content padding alone would still allow visual overlap.
+        .frame(height: max(0, height - pocketHeight))
+        .frame(height: height, alignment: .top)
         .background {
             InterestPaperShape()
                 .fill(Color.naldamPaper)
@@ -148,7 +154,30 @@ struct InterestBottomSheet: View {
 
     @ViewBuilder
     private var selectedTags: some View {
-        if visibleTags.isEmpty {
+        if usesAccessibleSummary {
+            Button {
+                move(to: .expanded)
+            } label: {
+                HStack(spacing: 8) {
+                    Text("\(visibleTags.count)개 선택")
+                        .font(.caption)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .semibold))
+                }
+                .foregroundStyle(Color.naldamAccent)
+                .frame(minHeight: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("나의 관심사, \(visibleTags.count)개 선택, 편집하기")
+            .accessibilityValue(visibleTags.joined(separator: ", "))
+            .accessibilityIdentifier("interests.add")
+        } else if visibleTags.isEmpty && sheetState == .expanded {
+            Text("아래에서 관심사를 골라보세요.")
+                .font(.footnote)
+                .foregroundStyle(Color.naldamSecondary)
+                .frame(minHeight: 28)
+                .accessibilityIdentifier("interests.emptySelection")
+        } else if visibleTags.isEmpty {
             Button {
                 move(to: .expanded)
             } label: {
@@ -190,10 +219,11 @@ struct InterestBottomSheet: View {
 
     private var editingContent: some View {
         VStack(alignment: .leading, spacing: 18) {
-            HStack {
+            editingHeadingLayout {
                 Text("어떤 이야기를 좋아하나요?")
                     .font(.headline)
-                Spacer(minLength: 4)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 4) }
                 Text("\(workingTags.count) / 6")
                     .font(.subheadline.monospacedDigit())
                     .foregroundStyle(Color.naldamSecondary)
@@ -262,9 +292,16 @@ struct InterestBottomSheet: View {
             Button("관심사 저장", action: saveTags)
                 .buttonStyle(NaldamPrimaryButtonStyle())
                 .frame(maxWidth: .infinity)
+                .accessibilityIdentifier("interests.saveBottom")
         }
         .foregroundStyle(Color.naldamInk)
         .padding(.top, 6)
+    }
+
+    private var editingHeadingLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout())
     }
 
     private func pullHandle(baseHeight: CGFloat, availableHeight: CGFloat) -> some View {
@@ -293,12 +330,14 @@ struct InterestBottomSheet: View {
             }
             .accessibilityIdentifier("interests.handle")
 
-            Text(sheetState == .expanded ? "아래로 내려 접기" : "위로 당겨 펼치기")
-                .font(.caption2)
-                .foregroundStyle(Color.naldamSecondary)
-                .accessibilityHidden(true)
+            if !dynamicTypeSize.isAccessibilitySize {
+                Text(sheetState == .expanded ? "아래로 내려 접기" : "위로 당겨 펼치기")
+                    .font(.caption2)
+                    .foregroundStyle(Color.naldamSecondary)
+                    .accessibilityHidden(true)
+            }
         }
-        .frame(width: 160, height: 68)
+        .frame(width: 160, height: dynamicTypeSize.isAccessibilitySize ? 52 : 68)
         .contentShape(Rectangle())
         .simultaneousGesture(
             DragGesture(minimumDistance: 8)

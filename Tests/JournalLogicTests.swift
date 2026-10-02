@@ -156,4 +156,65 @@ struct JournalLogicTests {
         #expect(try freshContext.fetchCount(FetchDescriptor<JournalDraft>()) == 0)
         #expect(try JournalPersistence.load(date: day, in: context).savedAnswer == "20시 기록")
     }
+
+    @Test("기존 디스크 저장소에 임시 작성 모델을 추가해도 기록과 관심사를 보존한다")
+    func diskStoreMigrationAndDraftRelaunch() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("NaldamMigration-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let storeURL = directory.appendingPathComponent("migration-test.store")
+        let day = date(2025, 4, 20)
+        let nextDay = date(2025, 4, 21)
+        let createdAt = day.addingTimeInterval(3600)
+        let tags = ["#독서", "산책", "음악"]
+
+        // Scope and drain each container before opening the next schema, as an app upgrade would.
+        try autoreleasepool {
+            let originalSchema = Schema([QuizEntry.self, InterestSelection.self])
+            let configuration = ModelConfiguration(schema: originalSchema, url: storeURL, cloudKitDatabase: .none)
+            let original = try ModelContainer(for: originalSchema, configurations: [configuration])
+            defer { withExtendedLifetime(original) {} }
+            original.mainContext.autosaveEnabled = false
+            original.mainContext.insert(QuizEntry(
+                date: day, question: "C2 때의 질문", answer: "지켜야 할 나의 기록",
+                createdAt: createdAt, updatedAt: createdAt
+            ))
+            original.mainContext.insert(InterestSelection(tags: tags, updatedAt: createdAt))
+            try original.mainContext.save()
+        }
+        #expect(FileManager.default.fileExists(atPath: storeURL.path))
+
+        try autoreleasepool {
+            let upgradedSchema = Schema([QuizEntry.self, InterestSelection.self, JournalDraft.self])
+            let configuration = ModelConfiguration(schema: upgradedSchema, url: storeURL, cloudKitDatabase: .none)
+            let upgraded = try ModelContainer(for: upgradedSchema, configurations: [configuration])
+            defer { withExtendedLifetime(upgraded) {} }
+            let entries = try upgraded.mainContext.fetch(FetchDescriptor<QuizEntry>())
+            let selections = try upgraded.mainContext.fetch(FetchDescriptor<InterestSelection>())
+            #expect(entries.count == 1)
+            #expect(entries.first?.question == "C2 때의 질문")
+            #expect(entries.first?.answer == "지켜야 할 나의 기록")
+            #expect(entries.first?.createdAt == createdAt)
+            #expect(selections.count == 1)
+            #expect(selections.first?.tags == tags)
+            try JournalPersistence.saveDraft(answer: "아직 쓰고 있는 이야기", question: "다음 날의 질문", date: nextDay, in: upgraded.mainContext)
+        }
+
+        try autoreleasepool {
+            let schema = Schema([QuizEntry.self, InterestSelection.self, JournalDraft.self])
+            let configuration = ModelConfiguration(schema: schema, url: storeURL, cloudKitDatabase: .none)
+            let reopened = try ModelContainer(for: schema, configurations: [configuration])
+            defer { withExtendedLifetime(reopened) {} }
+            let oldRecord = try JournalPersistence.load(date: day, in: reopened.mainContext)
+            let recoveredDraft = try JournalPersistence.load(date: nextDay, in: reopened.mainContext)
+            #expect(oldRecord.savedAnswer == "지켜야 할 나의 기록")
+            #expect(oldRecord.savedQuestion == "C2 때의 질문")
+            #expect(recoveredDraft.draftAnswer == "아직 쓰고 있는 이야기")
+            #expect(recoveredDraft.draftQuestion == "다음 날의 질문")
+            #expect(recoveredDraft.savedAnswer == nil)
+            #expect(try reopened.mainContext.fetchCount(FetchDescriptor<QuizEntry>()) == 1)
+            #expect(try reopened.mainContext.fetch(FetchDescriptor<InterestSelection>()).first?.tags == tags)
+        }
+    }
 }

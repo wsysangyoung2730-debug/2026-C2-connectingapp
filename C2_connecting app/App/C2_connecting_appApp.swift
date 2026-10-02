@@ -13,6 +13,7 @@ struct C2_connecting_appApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .defaultAppStorage(NaldamRuntime.preferences)
                 .tint(.naldamAccent)
                 .preferredColorScheme(.light)
                 .environment(\.locale, Locale(identifier: "ko_KR"))
@@ -26,6 +27,18 @@ struct C2_connecting_appApp: App {
 }
 
 enum NaldamRuntime {
+    static let preferences: UserDefaults = {
+        #if DEBUG
+        if isUITesting {
+            let preferences = UserDefaults(suiteName: "naldam-ui-\(UUID().uuidString)")!
+            preferences.set(!ProcessInfo.processInfo.arguments.contains("-naldam-show-onboarding"),
+                            forKey: "hasCompletedOnboarding")
+            return preferences
+        }
+        #endif
+        return .standard
+    }()
+
     static var isUITesting: Bool {
         #if DEBUG
         ProcessInfo.processInfo.arguments.contains("-naldam-ui-testing")
