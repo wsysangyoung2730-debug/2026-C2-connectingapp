@@ -16,6 +16,7 @@ struct C2_connecting_appApp: App {
         }
         .modelContainer(for: [
             QuizEntry.self,
+            JournalDraft.self,
             InterestSelection.self
         ])
     }
