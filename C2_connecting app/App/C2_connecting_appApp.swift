@@ -12,12 +12,25 @@ import SwiftData
 struct C2_connecting_appApp: App {
     var body: some Scene {
         WindowGroup {
-            MainHomeView()
+            ContentView()
+                .tint(.naldamAccent)
+                .preferredColorScheme(.light)
+                .environment(\.locale, Locale(identifier: "ko_KR"))
         }
         .modelContainer(for: [
             QuizEntry.self,
             JournalDraft.self,
             InterestSelection.self
-        ])
+        ], inMemory: NaldamRuntime.isUITesting)
+    }
+}
+
+enum NaldamRuntime {
+    static var isUITesting: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-naldam-ui-testing")
+        #else
+        false
+        #endif
     }
 }
