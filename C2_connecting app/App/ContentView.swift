@@ -10,6 +10,7 @@ import SwiftUI
 struct ContentView: View {
     // 온보딩 완료 여부를 영속화하여 앱 재실행 시에도 유지
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding: Bool = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Group {
@@ -23,7 +24,7 @@ struct ContentView: View {
                     .transition(.opacity)
             }
         }
-        .animation(.easeInOut, value: hasCompletedOnboarding)
+        .animation(reduceMotion ? nil : .easeInOut, value: hasCompletedOnboarding)
     }
 }
 
