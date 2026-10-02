@@ -41,6 +41,7 @@ struct JournalLogicTests {
     @Test("임시 작성은 별도로 유지되고 기록 저장 시에만 기록이 된다")
     func draftAndSaveLifecycle() throws {
         let container = try container()
+        defer { withExtendedLifetime(container) {} }
         let context = container.mainContext
         let day = date(2025, 4, 20)
         try JournalPersistence.saveDraft(answer: "산책을 했다", question: "오늘 좋았던 일은?", date: day, in: context)
@@ -58,6 +59,7 @@ struct JournalLogicTests {
     @Test("수정 중에는 원본이 유지되고 저장해도 원래 질문을 바꾸지 않는다")
     func editingPreservesOriginal() throws {
         let container = try container()
+        defer { withExtendedLifetime(container) {} }
         let context = container.mainContext
         let day = date(2025, 4, 20)
         try JournalPersistence.saveRecord(answer: "원래 기록", question: "처음 질문", date: day, in: context)
@@ -74,7 +76,9 @@ struct JournalLogicTests {
 
     @Test("빈 답변과 미래 날짜는 저장하지 않는다")
     func rejectsInvalidRecords() throws {
-        let context = try container().mainContext
+        let container = try container()
+        defer { withExtendedLifetime(container) {} }
+        let context = container.mainContext
         #expect(throws: JournalPersistenceError.self) {
             try JournalPersistence.saveRecord(answer: "  \n", question: "질문", date: date(2025, 4, 20), in: context)
         }
@@ -86,7 +90,9 @@ struct JournalLogicTests {
 
     @Test("임시 작성 취소와 기록 삭제는 다른 날짜의 기록에 영향을 주지 않는다")
     func discardAndDeleteAreScoped() throws {
-        let context = try container().mainContext
+        let container = try container()
+        defer { withExtendedLifetime(container) {} }
+        let context = container.mainContext
         let first = date(2025, 4, 20)
         let second = date(2025, 4, 21)
         try JournalPersistence.saveRecord(answer: "첫날", question: "질문", date: first, in: context)
@@ -102,7 +108,9 @@ struct JournalLogicTests {
 
     @Test("공유 컨텍스트의 미저장 변경을 건드리지 않는다")
     func leavesUnrelatedPendingChangesIntact() throws {
-        let context = try container().mainContext
+        let container = try container()
+        defer { withExtendedLifetime(container) {} }
+        let context = container.mainContext
         context.autosaveEnabled = false
         let pending = QuizEntry(date: date(2025, 4, 10), question: "다른 질문", answer: "아직 저장하지 않은 내용")
         context.insert(pending)
@@ -114,7 +122,9 @@ struct JournalLogicTests {
 
     @Test("메인 컨텍스트에서도 저장한 기록을 다시 조회할 수 있다")
     func mainContextFetchesCommittedRecord() throws {
-        let context = try container().mainContext
+        let container = try container()
+        defer { withExtendedLifetime(container) {} }
+        let context = container.mainContext
         let day = date(2025, 4, 20)
         try JournalPersistence.saveRecord(answer: "첫 기록", question: "질문", date: day, in: context)
         let firstFetch = try context.fetch(FetchDescriptor<QuizEntry>())
@@ -128,7 +138,9 @@ struct JournalLogicTests {
 
     @Test("같은 날짜의 다른 시간에 여러 번 저장해도 기록과 임시 작성은 하나씩만 유지된다")
     func repeatedWritesDoNotDuplicateTheDay() throws {
-        let context = try container().mainContext
+        let container = try container()
+        defer { withExtendedLifetime(container) {} }
+        let context = container.mainContext
         let day = date(2025, 4, 20)
         for hour in [8, 13, 20] {
             let timestamp = QuizDateHelper.calendar.date(byAdding: .hour, value: hour, to: day)!
