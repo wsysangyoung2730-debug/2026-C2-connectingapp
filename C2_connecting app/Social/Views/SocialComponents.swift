@@ -39,18 +39,15 @@ struct SocialStorageWarning: View {
 struct SocialInterestTags: View {
     let tags: [String]
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 6) { labels }
-            VStack(alignment: .leading, spacing: 6) { labels }
-        }
+        InterestFlowLayout(spacing: 6) { labels }
     }
     private var labels: some View {
         ForEach(tags, id: \.self) { tag in
-            Text(tag)
+            Text("#\(SamplePerson.normalized(tag))")
                 .font(.caption.weight(.medium))
-                .foregroundStyle(Color.naldamInk)
+                .foregroundStyle(Color.naldamAccent)
                 .padding(.horizontal, 10).padding(.vertical, 5)
-                .background(Color.naldamLine.opacity(0.6), in: Capsule())
+                .background(Color.naldamSoft, in: Capsule())
         }
     }
 }

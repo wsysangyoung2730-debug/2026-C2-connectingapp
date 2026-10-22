@@ -14,12 +14,13 @@ struct WeeklyRecordCard: View {
     }
     private var count: Int { days.filter(hasRecord).count }
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 6) {
             NavigationLink { JournalHistoryView() } label: {
                 HStack {
-                    Text(count == 0 ? "이번 주, 나를 위한 한 줄" : "이번 주, \(count)번의 기록").font(.headline)
+                    Text("이번 주").font(.subheadline.weight(.semibold))
                     Spacer()
-                    Image(systemName: "chevron.right").font(.caption.weight(.semibold))
+                    Text(count == 0 ? "하루를 하나씩 담아봐요" : "\(count)번의 하루를 담았어요")
+                        .font(.caption).foregroundStyle(Color.naldamSecondary)
                 }.foregroundStyle(Color.naldamInk)
             }.buttonStyle(.plain)
             HStack(spacing: 2) {
@@ -28,24 +29,31 @@ struct WeeklyRecordCard: View {
                     let future = date > Calendar.current.startOfDay(for: today)
                     let isToday = Calendar.current.isDate(date, inSameDayAs: today)
                     NavigationLink { QuizPageView(date: date) } label: {
-                        VStack(spacing: 10) {
+                        VStack(spacing: 5) {
                             Text(["월", "화", "수", "목", "금", "토", "일"][index]).font(.caption)
                             ZStack {
-                                Circle().fill(recorded ? Color.naldamAccent : Color.clear)
-                                Circle().stroke(recorded ? Color.clear : (isToday ? Color.naldamAccent : Color.naldamLine), lineWidth: isToday ? 2 : 1.5)
-                                if recorded {
-                                    Image(systemName: "checkmark").font(.caption.weight(.bold)).foregroundStyle(.white)
+                                Circle().fill(isToday ? Color.naldamAccent : (recorded ? Color.naldamSoft : Color.clear))
+                                if recorded && !isToday {
+                                    Image(systemName: "checkmark").font(.subheadline.weight(.medium))
+                                        .foregroundStyle(Color.naldamAccent)
+                                } else {
+                                    Text(date.formatted(.dateTime.day()))
+                                        .font(.subheadline.weight(isToday ? .semibold : .medium).monospacedDigit())
+                                        .foregroundStyle(isToday ? Color.naldamPaper : Color.naldamInk)
                                 }
-                            }.frame(width: 26, height: 26)
+                            }.frame(width: 30, height: 30)
                         }
-                        .foregroundStyle(future ? Color.naldamLine : Color.naldamSecondary)
-                        .frame(maxWidth: .infinity, minHeight: 60)
-                        .background(isToday ? Color.appBackground : .clear, in: Capsule()).contentShape(Rectangle())
+                        .foregroundStyle(isToday ? Color.naldamAccent : Color.naldamSecondary)
+                        .frame(maxWidth: .infinity, minHeight: 46)
+                        .background(isToday ? Color.naldamSoft : .clear, in: Capsule()).contentShape(Rectangle())
                     }
                     .buttonStyle(.plain).disabled(future)
                     .accessibilityLabel("\(date.formatted(.dateTime.month().day())) \(recorded ? "기록 완료" : future ? "아직 오지 않은 날" : "기록 없음")")
                 }
             }
-        }.naldamCard()
+        }
+        .padding(11)
+        .background(Color.naldamPaper, in: RoundedRectangle(cornerRadius: 19))
+        .overlay(RoundedRectangle(cornerRadius: 19).stroke(Color.naldamLine, lineWidth: 0.8))
     }
 }

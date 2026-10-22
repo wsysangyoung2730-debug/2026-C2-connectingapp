@@ -27,6 +27,20 @@ struct C2_connecting_appApp: App {
 }
 
 enum NaldamRuntime {
+    @MainActor static func seedPreviewIfRequested(in context: ModelContext) {
+        #if DEBUG
+        guard isUITesting, ProcessInfo.processInfo.arguments.contains("-naldam-seeded-ui"),
+              (try? context.fetchCount(FetchDescriptor<QuizEntry>())) == 0 else { return }
+        for offset in 1...8 {
+            guard let date = QuizDateHelper.calendar.date(byAdding: .day, value: -offset, to: Date()) else { continue }
+            let answers = ["잠깐의 산책이 하루를 바꿔줬다.", "천천히 달려도, 끝까지 달린 나.", "오랜 친구의 안부가 반가웠다.", "별일 없는 하루도, 꽤 괜찮았다.", "서두르지 않기로 한 하루."]
+            context.insert(QuizEntry(date: date, question: DailyQuestionProvider.question(for: date), answer: answers[(offset - 1) % answers.count]))
+        }
+        context.insert(InterestSelection(tags: ["러닝", "기록", "산책", "음악", "독서", "사진"]))
+        try? context.save()
+        #endif
+    }
+
     static let preferences: UserDefaults = {
         #if DEBUG
         if isUITesting {

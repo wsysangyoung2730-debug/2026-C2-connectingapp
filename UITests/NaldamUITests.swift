@@ -28,7 +28,7 @@ final class NaldamUITests: XCTestCase {
         app.buttons["home.today"].tap()
         let answer = app.textViews["journal.answer"]
         XCTAssertTrue(answer.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.tabBars.firstMatch.exists)
+        XCTAssertFalse(app.buttons["tab.home"].exists)
         answer.tap()
         answer.typeText("Today I found a quiet moment during a walk.")
         if app.buttons["완료"].exists { app.buttons["완료"].tap() }
@@ -40,7 +40,8 @@ final class NaldamUITests: XCTestCase {
         capture("04-journal")
         app.buttons["뒤로"].tap()
         XCTAssertTrue(app.buttons["home.today"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["오늘도 나를\n한 장 담았어요."].exists)
+        XCTAssertTrue(app.buttons["tab.home"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["오늘 담은 기록"].exists)
         let history = app.buttons["home.history"]
         for _ in 0..<5 {
             let handleY = app.buttons["interests.handle"].frame.minY
@@ -59,10 +60,12 @@ final class NaldamUITests: XCTestCase {
         XCTAssertTrue(handle.waitForExistence(timeout: 10))
         handle.tap()
         XCTAssertTrue(app.buttons["interests.edit"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["tab.home"].exists)
         capture("02-envelope-middle")
         app.buttons["interests.edit"].tap()
         let search = app.textFields["interests.search"]
         XCTAssertTrue(search.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["tab.home"].waitForNonExistence(timeout: 5))
         capture("03-envelope-expanded")
         search.tap()
         search.typeText("독서\n")
@@ -72,13 +75,14 @@ final class NaldamUITests: XCTestCase {
         add.tap()
         app.buttons["interests.save"].tap()
         XCTAssertTrue(app.buttons["독서, 관심사 펼치기"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["tab.home"].waitForExistence(timeout: 5))
     }
 
     func testDiscoveryAndSampleChat() {
-        app.tabBars.buttons["발견"].tap()
-        XCTAssertTrue(app.navigationBars["발견"].waitForExistence(timeout: 5))
+        app.buttons["tab.discover"].tap()
+        XCTAssertTrue(app.staticTexts["discover.title"].waitForExistence(timeout: 5))
         capture("06-discover")
-        app.tabBars.buttons["대화"].tap()
+        app.buttons["tab.conversations"].tap()
         let demo = app.buttons["받은 요청 체험하기"]
         reveal(demo)
         demo.tap()
@@ -120,5 +124,102 @@ final class NaldamUITests: XCTestCase {
         app.buttons["interests.handle"].tap()
         XCTAssertTrue(app.buttons["interests.save"].waitForExistence(timeout: 5))
         capture("10-interests-large-text")
+    }
+
+    func testSixDistinctSlotsAndCustomInterestLength() {
+        app.terminate()
+        app.launchArguments = ["-naldam-ui-testing", "-naldam-seeded-ui"]
+        app.launch()
+        XCTAssertTrue(app.buttons["interests.handle"].waitForExistence(timeout: 10))
+        app.buttons["interests.handle"].tap()
+        app.buttons["interests.edit"].tap()
+        let slots = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "interests.slot."))
+        XCTAssertEqual(slots.count, 6)
+        XCTAssertEqual(Set(slots.allElementsBoundByIndex.map(\.label)).count, 6)
+        XCTAssertTrue(app.buttons["profile.photo"].exists)
+        capture("18-interests-six-selected")
+        app.buttons["interests.slot.0"].tap()
+        let search = app.textFields["interests.search"]
+        search.tap(); search.typeText("abcdef\n")
+        let add = app.buttons["interests.addCustom"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        XCTAssertFalse(add.isEnabled)
+        app.buttons["검색어 지우기"].tap()
+        search.tap(); search.typeText("knit\n")
+        XCTAssertTrue(add.isEnabled)
+        add.tap()
+        XCTAssertTrue(app.buttons["knit 삭제"].waitForExistence(timeout: 5))
+        app.buttons["interests.save"].tap()
+        XCTAssertTrue(app.buttons["knit, 관심사 펼치기"].waitForExistence(timeout: 5))
+        capture("11-six-unique-interests")
+    }
+
+    func testRecentFiveEntriesAndDirectRecordNavigation() {
+        app.terminate()
+        app.launchArguments = ["-naldam-ui-testing", "-naldam-seeded-ui"]
+        app.launch()
+        XCTAssertTrue(app.buttons["home.recent.0"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["home.recent.5"].exists)
+        let last = app.buttons["home.recent.4"]
+        for _ in 0..<8 {
+            let handle = app.buttons["interests.handle"]
+            if last.exists && last.frame.maxY < handle.frame.minY { break }
+            let scroll = app.scrollViews["home.scroll"]
+            scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+                .press(forDuration: 0.05, thenDragTo: scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)))
+        }
+        XCTAssertTrue(last.isHittable)
+        capture("12-five-recent-records")
+        last.tap()
+        XCTAssertTrue(app.textViews["journal.answer"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textViews["journal.answer"].value as? String == "서두르지 않기로 한 하루.")
+    }
+
+    func testUnreadFilterAndQuestionDraft() {
+        app.terminate()
+        app.launchArguments = ["-naldam-ui-testing", "-naldam-seeded-ui"]
+        app.launch()
+        app.buttons["tab.discover"].tap()
+        XCTAssertTrue(app.buttons["discover.greet"].waitForExistence(timeout: 5))
+        capture("13-discovery-refresh")
+        app.buttons["tab.conversations"].tap()
+        let filter = app.segmentedControls["conversations.filter"]
+        XCTAssertTrue(filter.waitForExistence(timeout: 5))
+        filter.buttons["안 읽음 1"].tap()
+        capture("14-conversations-refresh")
+        let minseo = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "민서")).firstMatch
+        XCTAssertTrue(minseo.waitForExistence(timeout: 5))
+        minseo.tap()
+        XCTAssertTrue(app.buttons["tab.conversations"].waitForNonExistence(timeout: 5))
+        let prompt = app.buttons["chat.prompt"]
+        XCTAssertTrue(prompt.waitForExistence(timeout: 5))
+        capture("15-chat-refresh")
+        prompt.tap()
+        let composer = app.textFields["이 기기에 저장할 샘플 대화 메시지"]
+        XCTAssertFalse((composer.value as? String ?? "").isEmpty)
+        app.buttons["메시지 기기에 저장"].tap()
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.staticTexts["모든 이야기를 읽었어요"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["tab.home"].waitForExistence(timeout: 5))
+        app.buttons["tab.home"].tap()
+        XCTAssertTrue(app.buttons["interests.handle"].waitForExistence(timeout: 5))
+        let tabAtBottom = NSPredicate { _, _ in
+            self.app.buttons["tab.home"].frame.minY > self.app.frame.height * 0.8
+        }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: tabAtBottom, object: nil)], timeout: 5), .completed)
+        capture("17-home-seeded")
+    }
+
+    func testProfilePhotoSelection() {
+        app.buttons["interests.handle"].tap()
+        let photo = app.buttons["profile.photo"]
+        XCTAssertTrue(photo.waitForExistence(timeout: 5))
+        photo.tap()
+        let firstPhoto = app.images.matching(identifier: "PXGGridLayout-Info").firstMatch
+        XCTAssertTrue(firstPhoto.waitForExistence(timeout: 10))
+        firstPhoto.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        let changed = app.buttons["내 프로필 사진 변경"]
+        XCTAssertTrue(changed.waitForExistence(timeout: 10))
+        capture("16-profile-photo-selected")
     }
 }

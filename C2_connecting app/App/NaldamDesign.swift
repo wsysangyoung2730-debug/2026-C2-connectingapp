@@ -44,6 +44,54 @@ struct NaldamAvatar: View {
     }
 }
 
+/// The root owns the envelope floor; each page uses this light paper backdrop.
+struct NaldamEnvelopeBackground: View {
+    var body: some View {
+        Color.appBackground.ignoresSafeArea().allowsHitTesting(false).accessibilityHidden(true)
+    }
+}
+
+struct NaldamPersonPortrait: View {
+    let person: SamplePerson
+    var size: CGFloat = 56
+    private var symbol: String {
+        switch person.id {
+        case "minseo": "leaf"
+        case "jiwoo": "figure.run"
+        case "seoyeon": "book.closed"
+        default: "music.note"
+        }
+    }
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: size * 0.43, weight: .light))
+            .foregroundStyle(Color.naldamAccent)
+            .frame(width: size, height: size * 1.08)
+            .background(person.id == "minseo" ? Color(red: 0.90, green: 0.91, blue: 0.87) : Color.naldamSoft,
+                        in: RoundedRectangle(cornerRadius: size * 0.32))
+            .accessibilityHidden(true)
+    }
+}
+
+struct NaldamSearchField: View {
+    @Binding var text: String
+    let prompt: String
+    @FocusState private var focused: Bool
+    var body: some View {
+        HStack(spacing: 9) {
+            Image(systemName: "magnifyingglass").foregroundStyle(Color.naldamSecondary)
+            TextField(prompt, text: $text).font(.body).autocorrectionDisabled()
+                .submitLabel(.search).focused($focused).onSubmit { focused = false }
+            if !text.isEmpty {
+                Button { text = "" } label: { Image(systemName: "xmark.circle.fill") }
+                    .accessibilityLabel("검색어 지우기")
+            }
+        }
+        .padding(13).background(Color.naldamPaper, in: RoundedRectangle(cornerRadius: 15))
+        .overlay(RoundedRectangle(cornerRadius: 15).stroke(Color.naldamLine, lineWidth: 0.8))
+    }
+}
+
 struct NaldamPrimaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
     func makeBody(configuration: Configuration) -> some View {

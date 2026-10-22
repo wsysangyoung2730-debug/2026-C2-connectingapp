@@ -18,8 +18,8 @@ enum InterestLayoutHelper {
     static func height(for state: InterestSheetState, screenHeight: CGFloat) -> CGFloat {
         let availableHeight = max(0, screenHeight - 8)
         switch state {
-        case .collapsed: return min(240, availableHeight)
-        case .mid: return min(400, availableHeight)
+        case .collapsed: return min(235, availableHeight)
+        case .mid: return min(455, availableHeight)
         case .expanded: return availableHeight
         }
     }

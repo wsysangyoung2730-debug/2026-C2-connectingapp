@@ -6,11 +6,13 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct ContentView: View {
     // 온보딩 완료 여부를 영속화하여 앱 재실행 시에도 유지
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding: Bool = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.modelContext) private var modelContext
 
     var body: some View {
         Group {
@@ -25,6 +27,7 @@ struct ContentView: View {
             }
         }
         .animation(reduceMotion ? nil : .easeInOut, value: hasCompletedOnboarding)
+        .task { NaldamRuntime.seedPreviewIfRequested(in: modelContext) }
     }
 }
 

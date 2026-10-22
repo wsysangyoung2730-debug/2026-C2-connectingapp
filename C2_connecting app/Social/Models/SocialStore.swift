@@ -7,7 +7,12 @@ final class SocialStore: ObservableObject {
     static let shared: SocialStore = {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-naldam-ui-testing") {
-            return SocialStore(fileURL: URL.temporaryDirectory.appending(path: "naldam-ui-\(UUID().uuidString).json"))
+            let store = SocialStore(fileURL: URL.temporaryDirectory.appending(path: "naldam-ui-\(UUID().uuidString).json"))
+            if ProcessInfo.processInfo.arguments.contains("-naldam-seeded-ui") {
+                store.addSampleRequests()
+                if let request = store.conversation(for: "minseo") { store.acceptRequest(id: request.id) }
+            }
+            return store
         }
         #endif
         return SocialStore()
