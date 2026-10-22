@@ -10,6 +10,10 @@ import SwiftData
 
 @main
 struct C2_connecting_appApp: App {
+    init() {
+        FirebaseBootstrap.configureIfAvailable()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

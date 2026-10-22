@@ -7,7 +7,7 @@ struct OnboardingView: View {
     private let pages: [(String, String, String)] = [
         ("오늘의 나를 담다.", "하루 하나의 질문에 답하며\n나를 알아가는 작은 기록을 쌓아요.", "square.and.pencil"),
         ("좋아하는 것에서\n시작하는 연결", "관심사를 종이에 담아보세요.\n나와 닮은 이야기를 발견할 수 있어요.", "envelope.open"),
-        ("기록은 나만,\n연결은 천천히", "내 기록은 이 기기에만 저장돼요.\n발견과 대화는 아직 샘플 체험이며\n메시지는 실제 상대에게 전송되지 않아요.", "lock.open")
+        ("기록은 나만,\n연결은 천천히", "내 기록은 이 기기에만 저장돼요.\nApple 로그인 후 관심사로 만나고\n서로 수락한 뒤 이야기를 나눠요.", "lock.open")
     ]
 
     var body: some View {

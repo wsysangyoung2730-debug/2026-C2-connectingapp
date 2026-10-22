@@ -1,0 +1,122 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+    function own(uid) { return signedIn() && request.auth.uid == uid; }
+    function validUID(uid) {
+      return uid is string && uid.size() > 0 && uid.size() <= 128
+        && !uid.matches('.*[/].*') && !uid.matches('.*__.*');
+    }
+    function unblocked(a, b) {
+      return !exists(/databases/$(database)/documents/users/$(a)/blocks/$(b))
+        && !exists(/databases/$(database)/documents/users/$(b)/blocks/$(a));
+    }
+    function participant(room) {
+      return signedIn() && request.auth.uid in room.members;
+    }
+    function room(roomID) {
+      return get(/databases/$(database)/documents/rooms/$(roomID)).data;
+    }
+    function tagAt(tags, index) {
+      // The iOS editor enforces 5 graphemes. Rules size uses UTF-16 code units,
+      // so this bound also accepts combined emoji and decomposed characters.
+      return tags.size() <= index
+        || (tags[index] is string && tags[index].size() > 0
+          && tags[index].size() <= 256 && tags[index].matches('.*\\S.*')
+          && !tags[index].matches('(?s).*[#\\x00-\\x1F\\x7F].*'));
+    }
+    function validProfile(data) {
+      return data.keys().hasAll(['name', 'interests', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['name', 'interests', 'createdAt', 'updatedAt'])
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 1024
+        && data.name.matches('.*\\S.*')
+        && data.interests is list && data.interests.size() <= 6
+        && data.interests.toSet().size() == data.interests.size()
+        && tagAt(data.interests, 0) && tagAt(data.interests, 1)
+        && tagAt(data.interests, 2) && tagAt(data.interests, 3)
+        && tagAt(data.interests, 4) && tagAt(data.interests, 5)
+        && data.createdAt is timestamp && data.updatedAt == request.time;
+    }
+    match /profiles/{uid} {
+      allow read: if signedIn();
+      allow create: if own(uid) && validUID(uid) && validProfile(request.resource.data)
+        && request.resource.data.createdAt == request.time;
+      allow update: if own(uid) && validProfile(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if own(uid);
+    }
+
+    function validRoom(data, roomID) {
+      return data.keys().hasAll(['members', 'senderID', 'recipientID', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['members', 'senderID', 'recipientID', 'status', 'createdAt', 'updatedAt'])
+        && data.members is list && data.members.size() == 2
+        && validUID(data.members[0]) && validUID(data.members[1])
+        && data.members[0] < data.members[1]
+        && roomID == data.members[0] + '__' + data.members[1]
+        && data.senderID in data.members && data.recipientID in data.members
+        && data.senderID != data.recipientID
+        && data.createdAt is timestamp && data.updatedAt == request.time;
+    }
+    match /rooms/{roomID} {
+      // A participant can transact against a room that has not been created yet.
+      allow get: if signedIn() && (
+        (resource != null && participant(resource.data))
+        || (resource == null && roomID.split('__').size() == 2
+          && request.auth.uid in roomID.split('__')));
+      allow list: if participant(resource.data);
+      allow create: if signedIn() && validRoom(request.resource.data, roomID)
+        && request.resource.data.senderID == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time
+        && exists(/databases/$(database)/documents/profiles/$(request.resource.data.senderID))
+        && exists(/databases/$(database)/documents/profiles/$(request.resource.data.recipientID))
+        && unblocked(request.resource.data.senderID, request.resource.data.recipientID);
+      allow update: if participant(resource.data) && validRoom(request.resource.data, roomID)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+        && resource.data.status == 'pending'
+        && (
+          (request.resource.data.status == 'active' && request.auth.uid == resource.data.recipientID
+            && unblocked(resource.data.senderID, resource.data.recipientID))
+          || request.resource.data.status == 'declined'
+        );
+      allow delete: if false;
+
+      match /messages/{messageID} {
+        // A block prevents new contact while leaving the existing history readable.
+        allow read: if participant(room(roomID)) && room(roomID).status == 'active';
+        allow create: if participant(room(roomID)) && room(roomID).status == 'active'
+          && unblocked(room(roomID).senderID, room(roomID).recipientID)
+          && request.resource.data.keys().hasAll(['senderID', 'body', 'createdAt'])
+          && request.resource.data.keys().hasOnly(['senderID', 'body', 'createdAt'])
+          && request.resource.data.senderID == request.auth.uid
+          && request.resource.data.body is string
+          && request.resource.data.body.size() > 0 && request.resource.data.body.size() <= 2000
+          && request.resource.data.body.matches('(?s).*\\S.*')
+          && request.resource.data.createdAt == request.time;
+        allow update, delete: if false;
+      }
+      match /states/{uid} {
+        allow read: if own(uid) && participant(room(roomID));
+        allow create, update: if own(uid) && participant(room(roomID))
+          && request.resource.data.keys().size() > 0
+          && request.resource.data.keys().hasOnly(['lastReadAt', 'archived'])
+          && (!('lastReadAt' in request.resource.data)
+            || (request.resource.data.lastReadAt is timestamp && request.resource.data.lastReadAt <= request.time))
+          && (!('archived' in request.resource.data) || request.resource.data.archived is bool);
+        allow delete: if own(uid) && participant(room(roomID));
+      }
+    }
+    match /users/{uid}/blocks/{otherUID} {
+      allow read: if own(uid);
+      allow create, update: if own(uid) && validUID(otherUID) && otherUID != uid
+        && request.resource.data.keys().hasAll(['createdAt'])
+        && request.resource.data.keys().hasOnly(['createdAt'])
+        && request.resource.data.createdAt == request.time;
+      allow delete: if own(uid);
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

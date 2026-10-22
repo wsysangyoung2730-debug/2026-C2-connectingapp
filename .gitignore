@@ -34,3 +34,12 @@ fastlane/test_output/
 .env
 .env.*
 *.xcconfig.local
+
+# Firebase project configuration is supplied locally by each environment.
+GoogleService-Info.plist
+*.p8
+*service-account*.json
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.firebase/

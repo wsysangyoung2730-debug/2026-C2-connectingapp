@@ -1,127 +1,115 @@
 import SwiftUI
 
 struct SocialRequestView: View {
-    let person: SamplePerson
-    @ObservedObject private var store = SocialStore.shared
+    let person: ChatProfile
+    @ObservedObject private var store = LiveChatStore.shared
     @State private var showingDeclineConfirmation = false
-    @State private var showingDemoConfirmation = false
-    private var conversation: LocalConversation? { store.conversation(for: person.id) }
+    @State private var busy = false
+    private var room: ChatRoom? { store.room(for: person.id) }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                SocialSampleBanner()
-                SocialStorageWarning(message: store.storageError)
+                SocialStorageWarning(message: store.errorMessage)
                 SocialPersonHeading(person: person)
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("이 이야기에서 시작해요")
-                        .font(.caption.weight(.semibold)).foregroundStyle(Color.naldamAccent)
-                    Text(person.storyTitle).font(.title2.weight(.bold)).foregroundStyle(Color.naldamInk)
-                    NavigationLink("이야기 읽기") { SampleStoryView(person: person) }
+                    Text("좋아하는 것에서 시작해요").font(.headline).foregroundStyle(Color.naldamAccent)
+                    SocialInterestTags(tags: person.interests)
+                    NavigationLink("공개 프로필 보기") { PublicPersonView(person: person) }
                         .font(.subheadline).frame(minHeight: 44)
                 }.naldamCard()
                 requestState
-            }
-            .padding(20)
+                if busy { ProgressView("인사를 연결하고 있어요").frame(maxWidth: .infinity) }
+            }.padding(20)
         }
         .background(Color.appBackground)
         .navigationTitle("대화 요청").navigationBarTitleDisplayMode(.inline)
-        .toolbar(.visible, for: .navigationBar)
-        .naldamTabBarHidden()
-        .confirmationDialog("샘플 요청을 거절할까요?", isPresented: $showingDeclineConfirmation, titleVisibility: .visible) {
-            Button("요청 거절", role: .destructive) {
-                if let conversation { store.declineRequest(id: conversation.id) }
+        .toolbar(.visible, for: .navigationBar).naldamTabBarHidden()
+        .confirmationDialog("이 요청을 닫을까요?", isPresented: $showingDeclineConfirmation, titleVisibility: .visible) {
+            Button("요청 닫기", role: .destructive) {
+                if let room { perform { _ = await store.declineRequest(id: room.id) } }
             }
-        } message: {
-            Text("이 기기에 저장된 샘플 요청만 닫아요. 실제 사용자에게 알림이 가지 않아요.")
-        }
-        .confirmationDialog("상대 수락을 체험할까요?", isPresented: $showingDemoConfirmation, titleVisibility: .visible) {
-            Button("샘플 수락 체험") {
-                if let conversation { store.acceptRequest(id: conversation.id) }
-            }
-        } message: {
-            Text("실제 상대의 수락이 아닙니다. 가상의 첫 메시지가 들어 있는 로컬 대화를 열어요.")
-        }
+        } message: { Text("닫은 요청으로는 대화를 시작할 수 없어요.") }
     }
 
     @ViewBuilder private var requestState: some View {
-        if let conversation, conversation.isBlocked {
-            NaldamEmptyState(symbol: "hand.raised", title: "차단한 샘플 프로필이에요", message: "대화 탭의 차단 관리에서 해제할 수 있어요.")
-        } else if let conversation, conversation.status == .active {
-            if conversation.isArchived {
-                Text("이전에 나간 대화예요. 다시 열어도 기존 메시지는 유지돼요.")
+        if let room, room.isBlocked {
+            NaldamEmptyState(symbol: "hand.raised", title: "차단한 프로필이에요", message: "대화 탭의 차단 관리에서 해제할 수 있어요.")
+        } else if let room, room.status == .active {
+            if room.isArchived {
+                Text("목록에서 숨긴 대화예요. 다시 열어도 기존 메시지는 유지돼요.")
                     .font(.subheadline).foregroundStyle(Color.naldamSecondary)
-                Button("대화 다시 열기") { store.requestConversation(with: person) }
-                    .buttonStyle(NaldamPrimaryButtonStyle())
+                Button("대화 다시 열기") { perform { _ = await store.requestConversation(with: person) } }
+                    .buttonStyle(NaldamPrimaryButtonStyle()).disabled(busy)
             } else {
-                Label("샘플 대화가 준비됐어요", systemImage: "checkmark.circle")
+                Label("이제 이야기를 나눌 수 있어요", systemImage: "checkmark.circle")
                     .foregroundStyle(Color.naldamAccent)
-                NavigationLink { ChatDetailView(conversationID: conversation.id) } label: {
+                NavigationLink { ChatDetailView(conversationID: room.id) } label: {
                     Text("대화 열기")
                 }.buttonStyle(NaldamPrimaryButtonStyle())
             }
-        } else if let conversation, conversation.status == .incomingRequest && !conversation.isArchived {
+        } else if let room, room.status == .pending && room.isIncoming {
             VStack(alignment: .leading, spacing: 10) {
-                Text("받은 샘플 요청").font(.headline)
-                Text(person.greeting).font(.body).foregroundStyle(Color.naldamSecondary)
-                Text("수락하면 가상의 첫 메시지와 대화 입력을 체험할 수 있어요.")
-                    .font(.footnote).foregroundStyle(Color.naldamSecondary)
-            }
-            Button("샘플 요청 수락") { store.acceptRequest(id: conversation.id) }
-                .buttonStyle(NaldamPrimaryButtonStyle())
-            Button("거절") { showingDeclineConfirmation = true }
-                .font(.subheadline).foregroundStyle(Color.naldamSecondary)
-                .frame(maxWidth: .infinity, minHeight: 44)
-        } else if let conversation, conversation.status == .outgoingRequest && !conversation.isArchived {
-            VStack(alignment: .leading, spacing: 10) {
-                Label("이 기기에 요청을 남겼어요", systemImage: "envelope.badge")
-                    .font(.headline).foregroundStyle(Color.naldamInk)
-                Text("서버가 연결되지 않아 실제로 전달되지는 않아요. 아래 버튼으로 수락 이후 화면을 체험해 보세요.")
+                Text("\(person.name)님이 인사를 건넸어요").font(.headline)
+                Text("수락하면 두 사람만의 대화를 시작해요. 개인 기록은 함께 전달되지 않아요.")
                     .font(.subheadline).foregroundStyle(Color.naldamSecondary)
             }
-            Button("샘플 수락 체험") { showingDemoConfirmation = true }
-                .buttonStyle(NaldamPrimaryButtonStyle())
-            Button("요청 취소") { store.declineRequest(id: conversation.id) }
-                .font(.subheadline).frame(maxWidth: .infinity, minHeight: 44)
+            Button("인사 수락하기") { perform { _ = await store.acceptRequest(id: room.id) } }
+                .buttonStyle(NaldamPrimaryButtonStyle()).disabled(busy)
+                .accessibilityIdentifier("request.accept")
+            Button("거절") { showingDeclineConfirmation = true }
+                .font(.subheadline).frame(maxWidth: .infinity, minHeight: 44).disabled(busy)
+        } else if let room, room.status == .pending {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("인사를 건넸어요", systemImage: "envelope.badge").font(.headline)
+                Text("상대가 수락하면 대화를 시작할 수 있어요. 천천히 기다려 주세요.")
+                    .font(.subheadline).foregroundStyle(Color.naldamSecondary)
+            }
+            Button("요청 취소") { showingDeclineConfirmation = true }
+                .font(.subheadline).frame(maxWidth: .infinity, minHeight: 44).disabled(busy)
+        } else if let room, room.status == .declined {
+            NaldamEmptyState(symbol: "envelope", title: "마무리된 인사예요", message: "닫힌 요청은 다시 보내지 않아요. 발견에서 다른 친구를 만나보세요.")
         } else {
             VStack(alignment: .leading, spacing: 10) {
-                Text("이야기가 궁금한 마음을 남겨요")
-                    .font(.title3.weight(.semibold)).foregroundStyle(Color.naldamInk)
-                Text("대화 요청에는 내 개인 기록이 포함되지 않아요. 지금은 요청과 대화 흐름을 확인하는 로컬 체험입니다.")
+                Text("이야기가 궁금한 마음을 남겨요").font(.title3.weight(.semibold))
+                Text("이름과 관심사로 인사를 건네요. 상대가 수락해야 메시지를 주고받을 수 있어요.")
                     .font(.subheadline).foregroundStyle(Color.naldamSecondary)
             }
-            Button("샘플 요청 남기기") { store.requestConversation(with: person) }
-                .buttonStyle(NaldamPrimaryButtonStyle())
+            Button("인사 건네기") { perform { _ = await store.requestConversation(with: person) } }
+                .buttonStyle(NaldamPrimaryButtonStyle()).disabled(busy)
+                .accessibilityIdentifier("request.send")
         }
+    }
+
+    private func perform(_ operation: @escaping @MainActor () async -> Void) {
+        guard !busy else { return }
+        busy = true
+        Task { await operation(); busy = false }
     }
 }
 
-struct SampleRequestsView: View {
-    @ObservedObject private var store = SocialStore.shared
+struct IncomingRequestsView: View {
+    @ObservedObject private var store = LiveChatStore.shared
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                SocialSampleBanner()
-                SocialStorageWarning(message: store.storageError)
+                SocialStorageWarning(message: store.errorMessage)
                 if store.incomingRequests.isEmpty {
-                    NaldamEmptyState(symbol: "envelope.open", title: "받은 요청이 없어요", message: "요청이 생기면 먼저 이야기를 읽고 대화를 선택할 수 있어요.")
+                    NaldamEmptyState(symbol: "envelope.open", title: "받은 인사가 없어요", message: "인사가 도착하면 관심사를 살펴보고 대화를 선택할 수 있어요.")
                 }
-                ForEach(store.incomingRequests) { item in
-                    if let person = item.person {
-                        NavigationLink { SocialRequestView(person: person) } label: {
-                            HStack {
-                                SocialPersonHeading(person: person, subtitle: person.greeting)
-                                Spacer(minLength: 4)
-                                Image(systemName: "chevron.right").foregroundStyle(Color.naldamSecondary)
-                            }.naldamCard()
-                        }.buttonStyle(.plain)
-                    }
+                ForEach(store.incomingRequests) { room in
+                    NavigationLink { SocialRequestView(person: room.person) } label: {
+                        HStack {
+                            SocialPersonHeading(person: room.person)
+                            Spacer(minLength: 4)
+                            Image(systemName: "chevron.right").foregroundStyle(Color.naldamSecondary)
+                        }.naldamCard()
+                    }.buttonStyle(.plain)
                 }
             }.padding(20)
         }
         .background(Color.appBackground)
-        .navigationTitle("받은 샘플 요청").navigationBarTitleDisplayMode(.inline)
-        .toolbar(.visible, for: .navigationBar)
-        .naldamTabBarHidden()
+        .navigationTitle("도착한 인사").navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar).naldamTabBarHidden()
     }
 }

@@ -1,22 +1,20 @@
 import SwiftUI
-import SwiftData
 
 struct DiscoveryView: View {
-    @Query private var selections: [InterestSelection]
-    @ObservedObject private var store = SocialStore.shared
+    @ObservedObject private var store = LiveChatStore.shared
     @State private var selectedInterest = "추천"
     @State private var searchText = ""
     @State private var searchPresented = false
 
     private var interests: [String] {
-        InterestTagCatalog.selection(from: selections.max(by: { $0.updatedAt < $1.updatedAt })?.tags ?? [])
+        store.publishedProfile?.interests ?? []
     }
-    private var people: [SamplePerson] {
-        SamplePerson.all.filter { person in
+    private var people: [ChatProfile] {
+        store.profiles.filter { person in
             let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-            return store.conversation(for: person.id)?.isBlocked != true
-                && (selectedInterest == "추천" || person.interests.map(SamplePerson.normalized).contains(SamplePerson.normalized(selectedInterest)))
-                && (query.isEmpty || ([person.name, person.storyTitle] + person.interests).contains { $0.localizedCaseInsensitiveContains(query) })
+            return store.room(for: person.id)?.isBlocked != true
+                && (selectedInterest == "추천" || person.interests.map(ChatProfile.normalized).contains(ChatProfile.normalized(selectedInterest)))
+                && (query.isEmpty || ([person.name, person.interests.map { "#\($0)" }.joined(separator: " · ")] + person.interests).contains { $0.localizedCaseInsensitiveContains(query) })
         }.sorted {
             let lhs = $0.sharedInterests(with: interests).count, rhs = $1.sharedInterests(with: interests).count
             return lhs == rhs ? $0.name < $1.name : lhs > rhs
@@ -41,8 +39,8 @@ struct DiscoveryView: View {
                 }
                 Text("좋아하는 것에서 시작되는 새로운 사이.")
                     .font(.subheadline).foregroundStyle(Color.naldamSecondary)
-                if searchPresented { NaldamSearchField(text: $searchText, prompt: "이름, 관심사, 이야기 검색") }
-                SocialStorageWarning(message: store.storageError)
+                if searchPresented { NaldamSearchField(text: $searchText, prompt: "이름이나 관심사 검색") }
+                SocialStorageWarning(message: store.errorMessage)
                 if interests.isEmpty {
                     Label("홈의 봉투에 관심사를 담으면 닮은 친구를 먼저 볼 수 있어요.", systemImage: "envelope.open")
                         .font(.caption).foregroundStyle(Color.naldamSecondary)
@@ -62,15 +60,17 @@ struct DiscoveryView: View {
                         }
                     }
                 }
-                if let first = people.first {
+                if store.isLoading && people.isEmpty {
+                    ProgressView("닮은 관심사를 찾고 있어요").frame(maxWidth: .infinity).padding(28)
+                } else if let first = people.first {
                     featuredPerson(first)
                     if people.count > 1 {
-                        Text("이런 이야기도 만나보세요").font(.subheadline.weight(.semibold)).padding(.top, 3)
+                        Text("이런 친구도 만나보세요").font(.subheadline.weight(.semibold)).padding(.top, 3)
                         LazyVStack(spacing: 0) {
                             ForEach(Array(people.dropFirst())) { person in
-                                NavigationLink { SampleStoryView(person: person) } label: {
+                                NavigationLink { PublicPersonView(person: person) } label: {
                                     HStack(spacing: 12) {
-                                        NaldamPersonPortrait(person: person, size: 45)
+                                        ChatPersonPortrait(person: person, size: 45)
                                         VStack(alignment: .leading, spacing: 5) {
                                             Text(person.name).font(.subheadline.weight(.semibold)).foregroundStyle(Color.naldamInk)
                                             Text(person.interests.map { "#\($0)" }.joined(separator: " · "))
@@ -90,7 +90,14 @@ struct DiscoveryView: View {
                     Button("전체 이야기 보기") { selectedInterest = "추천"; searchText = "" }
                         .buttonStyle(NaldamPrimaryButtonStyle())
                 }
-                Label("샘플 프로필과 대화 · 이 기기에서 체험해요", systemImage: "flask")
+                if store.hasMoreProfiles {
+                    Button("친구 더 보기") { Task { await store.loadMoreProfiles() } }
+                        .frame(maxWidth: .infinity, minHeight: 44).disabled(store.isLoading)
+                }
+                if store.errorMessage != nil {
+                    Button("다시 연결하기") { store.reconnect() }.frame(minHeight: 44)
+                }
+                Text("공개된 관심사에서 시작해요. 개인 기록은 서로에게 보이지 않아요.")
                     .font(.caption).foregroundStyle(Color.naldamSecondary)
             }
             .foregroundStyle(Color.naldamInk)
@@ -110,17 +117,17 @@ struct DiscoveryView: View {
         }
     }
 
-    private func featuredPerson(_ person: SamplePerson) -> some View {
+    private func featuredPerson(_ person: ChatProfile) -> some View {
         let shared = person.sharedInterests(with: interests)
         return VStack(spacing: 16) {
             HStack {
-                Label(shared.isEmpty ? "새롭게 만나는 이야기" : "나와 닮은 관심사", systemImage: "sparkles").foregroundStyle(Color.naldamAccent)
+                Label(shared.isEmpty ? "새롭게 만나는 친구" : "나와 닮은 관심사", systemImage: "sparkles").foregroundStyle(Color.naldamAccent)
                 Spacer()
                 Text("오늘의 발견").foregroundStyle(Color.naldamSecondary)
             }.font(.caption)
-            NavigationLink { SampleStoryView(person: person) } label: {
+            NavigationLink { PublicPersonView(person: person) } label: {
                 HStack(spacing: 16) {
-                    NaldamPersonPortrait(person: person, size: 73)
+                    ChatPersonPortrait(person: person, size: 73)
                     VStack(alignment: .leading, spacing: 5) {
                         Text(person.name).font(.title2.weight(.semibold)).foregroundStyle(Color.naldamInk)
                         Text(shared.isEmpty ? "새로운 취향을 만나보세요" : "함께 좋아하는 것 \(shared.count)개")
@@ -128,7 +135,7 @@ struct DiscoveryView: View {
                     }
                 }.frame(maxWidth: .infinity)
             }.buttonStyle(.plain)
-            Text("“\(person.storyTitle)”").font(.subheadline).foregroundStyle(Color.naldamInk)
+            Text("가벼운 안부로 이야기를 시작해 보세요.").font(.subheadline).foregroundStyle(Color.naldamInk)
                 .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
             InterestFlowLayout(spacing: 6, centered: true) {
                 ForEach(person.interests, id: \.self) { interest in
@@ -149,28 +156,32 @@ struct DiscoveryView: View {
     }
 }
 
-struct SampleStoryView: View {
-    let person: SamplePerson
+struct PublicPersonView: View {
+    let person: ChatProfile
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                SocialSampleBanner(compact: true)
                 SocialPersonHeading(person: person)
-                VStack(alignment: .leading, spacing: 20) {
-                    Label("공개한 샘플 이야기", systemImage: "doc.text")
-                        .font(.caption.weight(.semibold)).foregroundStyle(Color.naldamAccent)
-                    Text(person.storyTitle).font(.title.weight(.bold)).foregroundStyle(Color.naldamInk)
-                    Text(person.story).font(.body).lineSpacing(7).foregroundStyle(Color.naldamInk).textSelection(.enabled)
+                VStack(alignment: .leading, spacing: 16) {
+                    Label("좋아하는 것에서 시작되는 이야기", systemImage: "leaf")
+                        .font(.headline).foregroundStyle(Color.naldamAccent)
+                    if person.interests.isEmpty {
+                        Text("아직 공개한 관심사가 없어요.").foregroundStyle(Color.naldamSecondary)
+                    } else {
+                        SocialInterestTags(tags: person.interests)
+                    }
+                    Text("가벼운 안부와 함께 서로의 취향을 알아가 보세요.")
+                        .font(.subheadline).foregroundStyle(Color.naldamSecondary)
                 }.naldamCard()
-                Text("내 기록은 자동으로 공개되지 않아요. 이 이야기는 디자인을 확인하기 위한 가상의 예시입니다.")
+                Text("개인 기록과 사진은 자동으로 공개되지 않아요.")
                     .font(.footnote).foregroundStyle(Color.naldamSecondary)
                 NavigationLink { SocialRequestView(person: person) } label: {
-                    Label("이 이야기로 대화 시작하기", systemImage: "bubble.left")
+                    Label("인사 건네기", systemImage: "envelope")
                 }.buttonStyle(NaldamPrimaryButtonStyle())
             }.padding(20)
         }
         .background(Color.appBackground)
-        .navigationTitle("공개한 이야기").navigationBarTitleDisplayMode(.inline)
+        .navigationTitle("공개 프로필").navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar).naldamTabBarHidden()
     }
 }

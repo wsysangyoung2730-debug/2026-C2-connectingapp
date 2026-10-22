@@ -1,0 +1,15 @@
+{
+  "name": "naldam-firestore-rules",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "firebase emulators:exec --project demo-naldam-chat --only firestore 'node --test --test-concurrency=1 tests/*.test.mjs'",
+    "test:running-emulator": "node --test --test-concurrency=1 tests/*.test.mjs"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "6.0.0",
+    "firebase": "13.1.0",
+    "firebase-tools": "15.34.1"
+  }
+}

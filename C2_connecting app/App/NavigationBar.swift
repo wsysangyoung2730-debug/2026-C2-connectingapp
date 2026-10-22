@@ -58,7 +58,8 @@ extension View {
 struct NaldamTabRoot: View {
     @State private var selectedTab: MainTab = .home
     @State private var hiddenTabs: [MainTab: Bool] = [:]
-    @ObservedObject private var socialStore = SocialStore.shared
+    @ObservedObject private var socialStore = LiveChatStore.shared
+    @ObservedObject private var session = AppleSession.shared
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
@@ -70,12 +71,14 @@ struct NaldamTabRoot: View {
                         .toolbar(.hidden, for: .tabBar)
                 }
                 Tab("발견", systemImage: "safari", value: .discover) {
-                    NavigationStack { DiscoveryView() }
+                    NavigationStack { SocialAccessGate { DiscoveryView() } }
+                        .id(session.userID ?? "signed-out")
                         .environment(\.naldamTab, .discover)
                         .toolbar(.hidden, for: .tabBar)
                 }
                 Tab("대화", systemImage: "bubble.left.and.bubble.right", value: .conversations) {
-                    NavigationStack { ConversationsView() }
+                    NavigationStack { SocialAccessGate { ConversationsView() } }
+                        .id(session.userID ?? "signed-out")
                         .environment(\.naldamTab, .conversations)
                         .toolbar(.hidden, for: .tabBar)
                 }
@@ -84,6 +87,7 @@ struct NaldamTabRoot: View {
             if hiddenTabs[selectedTab] != true { floatingTabs }
         }
         .onPreferenceChange(NaldamTabVisibilityKey.self) { hiddenTabs = $0 }
+        .onChange(of: session.userID) { _, _ in hiddenTabs = [:] }
         .background(Color.naldamEnvelope.ignoresSafeArea())
         .tint(.naldamAccent)
     }
@@ -110,7 +114,7 @@ struct NaldamTabRoot: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(tab.title)
-                .accessibilityValue(tab == .conversations && socialStore.unreadCount > 0 ? "읽지 않은 메시지 \(socialStore.unreadCount)개" : "")
+                .accessibilityValue(tab == .conversations && socialStore.unreadCount > 0 ? "새 인사와 읽지 않은 대화 \(socialStore.unreadCount)개" : "")
                 .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
                 .accessibilityIdentifier("tab.\(tab.rawValue)")
             }
