@@ -72,7 +72,7 @@ struct QuizPageView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden()
         .toolbar(.visible, for: .navigationBar)
-        .toolbar(.hidden, for: .tabBar)
+        .naldamTabBarHidden()
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {

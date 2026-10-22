@@ -27,7 +27,7 @@ struct SocialRequestView: View {
         .background(Color.appBackground)
         .navigationTitle("대화 요청").navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
-        .toolbar(.hidden, for: .tabBar)
+        .naldamTabBarHidden()
         .confirmationDialog("샘플 요청을 거절할까요?", isPresented: $showingDeclineConfirmation, titleVisibility: .visible) {
             Button("요청 거절", role: .destructive) {
                 if let conversation { store.declineRequest(id: conversation.id) }
@@ -122,6 +122,6 @@ struct SampleRequestsView: View {
         .background(Color.appBackground)
         .navigationTitle("받은 샘플 요청").navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
-        .toolbar(.hidden, for: .tabBar)
+        .naldamTabBarHidden()
     }
 }

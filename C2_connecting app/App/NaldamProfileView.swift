@@ -3,6 +3,7 @@ import SwiftUI
 struct NaldamProfileView: View {
     @AppStorage("profileName") private var profileName = "나"
     @State private var editedName = ""
+    @AppStorage("profilePhotoJPEG") private var photoData = Data()
     @Environment(\.dismiss) private var dismiss
     private var validName: String { editedName.trimmingCharacters(in: .whitespacesAndNewlines) }
     var body: some View {
@@ -11,7 +12,15 @@ struct NaldamProfileView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     HStack {
                         Spacer()
-                        NaldamAvatar(name: validName, size: 80)
+                        VStack(spacing: 14) {
+                            ProfilePhotoPicker(width: 88, height: 106)
+                            if !photoData.isEmpty {
+                                Button("프로필 사진 삭제", role: .destructive) { photoData = Data() }
+                                    .font(.footnote).frame(minHeight: 44)
+                            }
+                            Text("사진은 선택하면 이 기기에 바로 저장돼요.")
+                                .font(.caption).foregroundStyle(Color.naldamSecondary)
+                        }
                         Spacer()
                     }.padding(.top, 20)
                     VStack(alignment: .leading, spacing: 10) {

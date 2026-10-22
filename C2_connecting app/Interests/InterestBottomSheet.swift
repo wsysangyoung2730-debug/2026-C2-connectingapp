@@ -26,9 +26,12 @@ struct InterestBottomSheet: View {
     }
 
     private var savedSelection: InterestSelection? { selections.first }
-    private var savedTags: [String] { savedSelection?.tags ?? [] }
+    private var savedTags: [String] { InterestTagCatalog.selection(from: savedSelection?.tags ?? []) }
     private var visibleTags: [String] { sheetState == .expanded ? workingTags : savedTags }
-    private var pocketHeight: CGFloat { sheetState == .expanded ? 38 : 66 }
+    private var pocketHeight: CGFloat { sheetState == .expanded ? 30 : 42 }
+    private var filteredTags: [String] {
+        InterestTagCatalog.filteredTags(query: searchText, additionalTags: savedTags + workingTags)
+    }
     private var usesAccessibleSummary: Bool { dynamicTypeSize.isAccessibilitySize && sheetState == .collapsed }
     private var animation: Animation? {
         reduceMotion ? .easeOut(duration: 0.12) : .spring(response: 0.4, dampingFraction: 0.86)
@@ -88,7 +91,7 @@ struct InterestBottomSheet: View {
                         Button("취소") { move(to: .collapsed) }
                             .foregroundStyle(Color.naldamSecondary)
                         Spacer()
-                        Button("저장", action: saveTags)
+                        Button("완료", action: saveTags)
                             .fontWeight(.semibold)
                             .accessibilityIdentifier("interests.save")
                     }
@@ -98,15 +101,7 @@ struct InterestBottomSheet: View {
                     .padding(.top, 8)
                 }
 
-                HStack(spacing: 12) {
-                    NaldamAvatar(name: profileName, size: 44)
-                    Text(usesAccessibleSummary ? "관심사" : "나의 관심사")
-                        .font(usesAccessibleSummary ? .headline.weight(.bold) : .title3.weight(.bold))
-                        .foregroundStyle(Color.naldamInk)
-                }
-                .accessibilityElement(children: .combine)
-
-                selectedTags
+                profileSummary
 
                 if sheetState == .mid {
                     Text("좋아하는 것에서 이야기가 시작돼요.\n나를 닮은 관심사를 담아보세요.")
@@ -129,7 +124,7 @@ struct InterestBottomSheet: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 26)
-            .padding(.top, usesAccessibleSummary ? 56 : 70)
+            .padding(.top, sheetState == .collapsed ? 56 : 62)
             .padding(.bottom, sheetState == .collapsed ? 0 : 24)
         }
         .scrollDisabled(sheetState == .collapsed)
@@ -150,6 +145,59 @@ struct InterestBottomSheet: View {
             InterestPaperShape().stroke(Color.naldamLine.opacity(0.7), lineWidth: 0.5)
                 .allowsHitTesting(false)
         }
+    }
+
+    @ViewBuilder private var profileSummary: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            HStack(spacing: 12) {
+                ProfilePhotoPicker(width: 44, height: 52)
+                Text(usesAccessibleSummary ? "관심사" : "나의 관심사")
+                    .font(.headline).foregroundStyle(Color.naldamInk)
+            }
+            selectedTags
+        } else {
+            VStack(spacing: 9) {
+                HStack(spacing: 12) {
+                    tagColumn(indices: 0..<3)
+                    ProfilePhotoPicker(width: 76, height: sheetState == .collapsed ? 88 : 100)
+                        .padding(4)
+                        .background(Color.naldamPaper, in: RoundedRectangle(cornerRadius: 24))
+                        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.naldamLine.opacity(0.6), lineWidth: 0.7))
+                    tagColumn(indices: 3..<6)
+                }
+                Text("나의 관심사").font(.title3.weight(.semibold)).foregroundStyle(Color.naldamInk)
+            }
+        }
+    }
+
+    private func tagColumn(indices: Range<Int>) -> some View {
+        VStack(spacing: 6) {
+            ForEach(indices, id: \.self) { index in
+                let tag = visibleTags.indices.contains(index) ? visibleTags[index] : nil
+                Button {
+                    if sheetState != .expanded { move(to: tag == nil ? .expanded : .mid) }
+                    else if let tag { workingTags.removeAll { $0 == tag }; limitReached = false }
+                    else { searchIsFocused = true }
+                } label: {
+                    HStack(spacing: 3) {
+                        Text(tag.map { "#\($0)" } ?? "+")
+                            .lineLimit(1).minimumScaleFactor(0.8)
+                        if tag != nil && sheetState == .expanded {
+                            Image(systemName: "xmark").font(.system(size: 9, weight: .medium))
+                        }
+                    }
+                    .font(.caption).foregroundStyle(tag == nil ? Color.naldamSecondary : Color.naldamAccent)
+                    .frame(maxWidth: .infinity, minHeight: sheetState == .collapsed ? 28 : 32)
+                    .background(tag == nil ? Color.clear : Color.naldamSoft, in: Capsule())
+                    .overlay(Capsule().stroke(tag == nil ? Color.naldamLine : Color.clear,
+                                              style: StrokeStyle(lineWidth: 1, dash: [3, 3])))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(tag.map { sheetState == .expanded ? "\($0) 삭제" : "\($0), 관심사 펼치기" } ?? "관심사 추가")
+                .accessibilityIdentifier("interests.slot.\(index)")
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder
@@ -219,20 +267,10 @@ struct InterestBottomSheet: View {
 
     private var editingContent: some View {
         VStack(alignment: .leading, spacing: 18) {
-            editingHeadingLayout {
-                Text("어떤 이야기를 좋아하나요?")
-                    .font(.headline)
-                    .fixedSize(horizontal: false, vertical: true)
-                if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 4) }
-                Text("\(workingTags.count) / 6")
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(Color.naldamSecondary)
-            }
-
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(Color.naldamSecondary)
-                TextField("관심사 검색", text: $searchText)
+                TextField("어떤 이야기를 좋아하나요?", text: $searchText)
                     .focused($searchIsFocused)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -253,21 +291,35 @@ struct InterestBottomSheet: View {
             .padding(.horizontal, 14)
             .frame(minHeight: 50)
             .background(Color.appBackground, in: RoundedRectangle(cornerRadius: 15))
+            .overlay(RoundedRectangle(cornerRadius: 15).stroke(Color.naldamLine, lineWidth: 0.8))
 
             Text(searchText.isEmpty ? "이런 관심사는 어때요?" : "검색 결과")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Color.naldamSecondary)
 
-            if InterestTagCatalog.filteredTags(query: searchText).isEmpty {
-                Text("일치하는 관심사가 없어요.\n다른 단어로 검색해 주세요.")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.naldamSecondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 12)
+            if filteredTags.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("찾는 관심사가 없나요? 직접 담아보세요.")
+                        .font(.subheadline).foregroundStyle(Color.naldamSecondary)
+                    Text("관심사는 5글자 이내로 입력해 주세요. (\(InterestTagCatalog.cleaned(searchText).count)/5)")
+                        .font(.caption).foregroundStyle(Color.naldamSecondary)
+                        .accessibilityIdentifier("interests.customLength")
+                    Button {
+                        guard let tag = InterestTagCatalog.customTag(from: searchText) else { return }
+                        toggle(tag)
+                        if workingTags.contains(tag) { searchText = ""; searchIsFocused = false }
+                    } label: {
+                        Label("#\(InterestTagCatalog.cleaned(searchText)) 추가", systemImage: "plus")
+                            .font(.subheadline).frame(maxWidth: .infinity, minHeight: 46)
+                    }
+                    .buttonStyle(NaldamPrimaryButtonStyle())
+                    .disabled(InterestTagCatalog.customTag(from: searchText) == nil || workingTags.count >= 6)
+                    .accessibilityIdentifier("interests.addCustom")
+                }.padding(.vertical, 8)
             } else {
                 InterestFlowLayout(spacing: 8) {
-                    ForEach(InterestTagCatalog.filteredTags(query: searchText), id: \.self) { tag in
-                        let selected = workingTags.contains(tag)
+                    ForEach(filteredTags, id: \.self) { tag in
+                        let selected = workingTags.contains { SamplePerson.normalized($0) == SamplePerson.normalized(tag) }
                         PaperInterestChip(title: tag, selected: selected, selectionMark: true) {
                             toggle(tag)
                         }
@@ -284,7 +336,13 @@ struct InterestBottomSheet: View {
                     .accessibilityIdentifier("interests.limit")
             }
 
-            Text("최대 6개까지 선택할 수 있어요. 관심사는 발견 화면의 추천에 사용돼요. 나의 기록은 공개되지 않아요.")
+            editingHeadingLayout {
+                Text("관심사는 최대 6개까지").font(.subheadline).foregroundStyle(Color.naldamSecondary)
+                if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 4) }
+                Text("\(workingTags.count) / 6").font(.headline.monospacedDigit()).foregroundStyle(Color.naldamAccent)
+            }
+
+            Text("직접 입력은 5글자 이내예요. 나의 기록은 공개되지 않아요.")
                 .font(.footnote)
                 .foregroundStyle(Color.naldamSecondary)
                 .lineSpacing(4)
@@ -310,12 +368,12 @@ struct InterestBottomSheet: View {
                 let next: InterestSheetState = sheetState == .collapsed ? .mid : (sheetState == .mid ? .expanded : .collapsed)
                 move(to: next)
             } label: {
-                Image(systemName: sheetState == .expanded ? "chevron.down" : "chevron.up")
+                Image(systemName: sheetState == .expanded ? "chevron.down.2" : "chevron.up.2")
                     .font(.system(size: 19, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.naldamGoldInk)
                     .frame(width: 46, height: 46)
-                    .background(Color.naldamAccent.gradient, in: Circle())
-                    .overlay(Circle().stroke(.white.opacity(0.35), lineWidth: 1))
+                    .background(Color.naldamGold, in: Circle())
+                    .overlay(Circle().stroke(Color.naldamPaper, lineWidth: 3))
             }
             .buttonStyle(.plain)
             .accessibilityLabel(sheetState == .expanded ? "관심사 닫기" : "관심사 펼치기")
@@ -331,13 +389,16 @@ struct InterestBottomSheet: View {
             .accessibilityIdentifier("interests.handle")
 
             if !dynamicTypeSize.isAccessibilitySize {
+                Capsule().fill(Color.naldamLine).frame(width: 26, height: 3)
+                    .padding(.vertical, 2).accessibilityHidden(true)
                 Text(sheetState == .expanded ? "아래로 내려 접기" : "위로 당겨 펼치기")
                     .font(.caption2)
                     .foregroundStyle(Color.naldamSecondary)
                     .accessibilityHidden(true)
             }
         }
-        .frame(width: 160, height: dynamicTypeSize.isAccessibilitySize ? 52 : 68)
+        .frame(width: 160, height: dynamicTypeSize.isAccessibilitySize ? 52 : 76)
+        .offset(y: -18)
         .contentShape(Rectangle())
         .simultaneousGesture(
             DragGesture(minimumDistance: 8)
@@ -356,11 +417,13 @@ struct InterestBottomSheet: View {
     }
 
     private func toggle(_ tag: String) {
-        if workingTags.contains(tag) {
-            workingTags.removeAll { $0 == tag }
+        let value = InterestTagCatalog.cleaned(tag)
+        let key = SamplePerson.normalized(value)
+        if workingTags.contains(where: { SamplePerson.normalized($0) == key }) {
+            workingTags.removeAll { SamplePerson.normalized($0) == key }
             limitReached = false
         } else if workingTags.count < 6 {
-            workingTags.append(tag)
+            workingTags.append(value)
             limitReached = false
         } else {
             limitReached = true
@@ -383,7 +446,7 @@ struct InterestBottomSheet: View {
     }
 
     private func saveTags() {
-        let tags = Array(workingTags.prefix(6))
+        let tags = InterestTagCatalog.selection(from: workingTags)
         if let selection = savedSelection {
             let originalTags = selection.tags
             let originalDate = selection.updatedAt
