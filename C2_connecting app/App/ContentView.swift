@@ -16,6 +16,25 @@ struct ContentView: View {
 
     var body: some View {
         Group {
+            #if DEBUG
+            if NaldamRuntime.screenshotScreen == "chat" {
+                NavigationStack {
+                    SocialAccessGate { ChatDetailView(conversationID: "screenshot-forest__screenshot-owner") }
+                }
+            } else if NaldamRuntime.screenshotScreen == "journal" {
+                NavigationStack { QuizPageView(date: Calendar.current.date(byAdding: .day, value: -1, to: .now)!) }
+            } else {
+                appContent
+            }
+            #else
+            appContent
+            #endif
+        }
+        .animation(reduceMotion ? nil : .easeInOut, value: hasCompletedOnboarding)
+        .task { NaldamRuntime.seedPreviewIfRequested(in: modelContext) }
+    }
+
+    @ViewBuilder private var appContent: some View {
             if hasCompletedOnboarding {
                 // 온보딩이 끝난 경우: 메인 화면 진입
                 MainHomeView()
@@ -25,9 +44,6 @@ struct ContentView: View {
                 OnboardingView(hasCompletedOnboarding: $hasCompletedOnboarding)
                     .transition(.opacity)
             }
-        }
-        .animation(reduceMotion ? nil : .easeInOut, value: hasCompletedOnboarding)
-        .task { NaldamRuntime.seedPreviewIfRequested(in: modelContext) }
     }
 }
 

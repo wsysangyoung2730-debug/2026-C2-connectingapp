@@ -74,8 +74,17 @@ struct InterestBottomSheet: View {
         } message: {
             Text(errorMessage ?? "잠시 후 다시 시도해 주세요.")
         }
-        .onAppear { workingTags = Array(savedTags.prefix(6)) }
+        .onAppear {
+            workingTags = Array(savedTags.prefix(6))
+            #if DEBUG
+            if NaldamRuntime.screenshotScreen == "envelope" { move(to: .mid) }
+            if NaldamRuntime.screenshotScreen == "interests" { move(to: .expanded) }
+            #endif
+        }
         .onChange(of: savedTags) { _, tags in
+            #if DEBUG
+            if NaldamRuntime.isStoreScreenshot { workingTags = Array(tags.prefix(6)) }
+            #endif
             if sheetState != .expanded { workingTags = Array(tags.prefix(6)) }
         }
         .onChange(of: isBackgroundDimmed) { _, dimmed in

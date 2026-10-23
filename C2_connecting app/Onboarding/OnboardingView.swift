@@ -37,6 +37,7 @@ struct OnboardingView: View {
                         .foregroundStyle(Color.naldamSecondary).multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                     if currentStep == 2 {
+                        NaldamLegalLinks()
                         Text("앱 삭제 시 기록이 사라질 수 있어요.\n계정 동기화와 복원은 아직 제공하지 않아요.")
                             .font(.caption).foregroundStyle(Color.naldamSecondary)
                             .multilineTextAlignment(.center).padding(16)

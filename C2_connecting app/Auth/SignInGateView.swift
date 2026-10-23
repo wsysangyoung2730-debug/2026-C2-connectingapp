@@ -34,6 +34,7 @@ struct SignInGateView: View {
                         .background(Color.naldamPaper, in: RoundedRectangle(cornerRadius: 20))
                         .accessibilityIdentifier("auth.configurationRequired")
                 }
+                NaldamLegalLinks()
                 if let error = session.errorMessage {
                     Text(error).font(.footnote).foregroundStyle(Color.naldamAccent)
                         .accessibilityIdentifier("auth.error")

@@ -43,6 +43,38 @@ final class LiveChatStore: ObservableObject {
     private var writingRead = Set<String>()
     private var sendingIDs = Set<String>()
 
+    #if DEBUG
+    private func loadScreenshotFixtures() {
+        publishedProfile = ChatProfile(id: "screenshot-owner", name: "하루", interests: ["러닝", "기록", "산책", "음악", "독서", "사진"])
+        profiles = [
+            ChatProfile(id: "screenshot-forest", name: "숲", interests: ["러닝", "기록", "산책", "독서", "사진"]),
+            ChatProfile(id: "screenshot-yoon", name: "윤슬", interests: ["기록", "음악", "산책", "사진"]),
+            ChatProfile(id: "screenshot-moon", name: "달빛", interests: ["독서", "음악", "산책"]),
+            ChatProfile(id: "screenshot-walk", name: "느린걸음", interests: ["러닝", "산책"])
+        ]
+        rooms = [
+            ChatRoom(id: "screenshot-forest__screenshot-owner", person: profiles[0], status: .active, isIncoming: false, updatedAt: .now.addingTimeInterval(-180), lastMessage: "산책길에서 만난 작은 풍경이 좋았어요.", hasUnread: true),
+            ChatRoom(id: "screenshot-owner__screenshot-yoon", person: profiles[1], status: .active, isIncoming: true, updatedAt: .now.addingTimeInterval(-3600), lastMessage: "저도 오늘은 천천히 걸어보려고요."),
+            ChatRoom(id: "screenshot-moon__screenshot-owner", person: profiles[2], status: .pending, isIncoming: true, updatedAt: .now.addingTimeInterval(-7200))
+        ]
+        profileLoaded = true
+    }
+
+    private static var screenshotMessages: [ChatMessage] {
+        let lines: [(String, Bool)] = [
+            ("안녕하세요! 산책과 기록을 좋아하시는군요.", false),
+            ("네, 걷다가 떠오른 생각을 적곤 해요.", true),
+            ("오늘은 어떤 순간을 담으셨나요?", false),
+            ("나뭇잎 사이로 들어오는 햇빛이 예뻤어요. 잠깐 멈춰서 바라봤어요.", true),
+            ("산책길에서 만난 작은 풍경이 좋았어요.", false)
+        ]
+        return lines.enumerated().map { index, value in
+            ChatMessage(id: "screenshot-message-\(index)", body: value.0,
+                        createdAt: .now.addingTimeInterval(Double(index - 5) * 180), isMine: value.1, delivery: .sent)
+        }
+    }
+    #endif
+
     init(session: AppleSession? = nil) {
         let session = session ?? AppleSession.shared
         sessionSubscription = session.$userID.removeDuplicates().sink { [weak self] userID in
@@ -74,6 +106,12 @@ final class LiveChatStore: ObservableObject {
         roomData = [:]; knownProfiles = [:]; discoveryIDs = []; blockedIDs = []
         states = [:]; latestMessages = [:]; writingRead = []; sendingIDs = []
         profileCursor = nil; hasMoreProfiles = false; hasLoadedMoreProfiles = false; errorMessage = nil; isLoading = false
+        #if DEBUG
+        if NaldamRuntime.isStoreScreenshot, userID != nil {
+            loadScreenshotFixtures()
+            return
+        }
+        #endif
         guard let userID, FirebaseBootstrap.configureIfAvailable() else { return }
         let db = Firestore.firestore()
         database = db
@@ -381,6 +419,14 @@ final class LiveChatStore: ObservableObject {
     @discardableResult
     func openChat(id: String) -> UUID? {
         closeChat()
+        #if DEBUG
+        if NaldamRuntime.isStoreScreenshot {
+            guard room(id: id)?.status == .active else { return nil }
+            activeRoomID = id
+            messages = Self.screenshotMessages
+            return chatGeneration
+        }
+        #endif
         guard let db = database, let userID = currentUserID, room(id: id)?.status == .active else { return nil }
         activeRoomID = id
         let token = generation, chatToken = chatGeneration

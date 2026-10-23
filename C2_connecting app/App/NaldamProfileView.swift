@@ -54,6 +54,7 @@ struct NaldamProfileView: View {
                         Text("앱을 삭제하면 기기에만 저장한 일기·사진·초안이 사라질 수 있어요. 전송된 대화는 같은 Apple 계정으로 다시 연결하면 확인할 수 있어요.")
                             .foregroundStyle(Color.naldamSecondary)
                     }.font(.subheadline).lineSpacing(5).naldamCard()
+                    NaldamLegalLinks()
                     HStack(spacing: 8) {
                         NaldamLogo(size: 20)
                         Text("날담 · 오늘의 나를 담다").font(.footnote)

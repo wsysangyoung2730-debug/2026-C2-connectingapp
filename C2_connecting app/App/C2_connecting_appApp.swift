@@ -31,6 +31,17 @@ struct C2_connecting_appApp: App {
 }
 
 enum NaldamRuntime {
+    #if DEBUG
+    // Never compiled into a Release build; no Firebase account or network is used.
+    static var isStoreScreenshot: Bool {
+        isUITesting && ProcessInfo.processInfo.arguments.contains("-naldam-store-screenshot")
+    }
+    static var screenshotScreen: String? {
+        guard isStoreScreenshot else { return nil }
+        return ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("-naldam-screen=") })?
+            .replacingOccurrences(of: "-naldam-screen=", with: "")
+    }
+    #endif
     @MainActor static func seedPreviewIfRequested(in context: ModelContext) {
         #if DEBUG
         guard isUITesting, ProcessInfo.processInfo.arguments.contains("-naldam-seeded-ui"),
@@ -49,6 +60,7 @@ enum NaldamRuntime {
         #if DEBUG
         if isUITesting {
             let preferences = UserDefaults(suiteName: "naldam-ui-\(UUID().uuidString)")!
+            if isStoreScreenshot { preferences.set("하루", forKey: "profileName") }
             preferences.set(!ProcessInfo.processInfo.arguments.contains("-naldam-show-onboarding"),
                             forKey: "hasCompletedOnboarding")
             return preferences

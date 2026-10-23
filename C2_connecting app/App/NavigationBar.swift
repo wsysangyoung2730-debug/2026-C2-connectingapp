@@ -62,6 +62,14 @@ struct NaldamTabRoot: View {
     @ObservedObject private var session = AppleSession.shared
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
+    init() {
+        #if DEBUG
+        if let screen = NaldamRuntime.screenshotScreen, let tab = MainTab(rawValue: screen) {
+            _selectedTab = State(initialValue: tab)
+        }
+        #endif
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             TabView(selection: $selectedTab) {

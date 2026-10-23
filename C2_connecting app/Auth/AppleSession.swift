@@ -20,6 +20,12 @@ final class AppleSession: ObservableObject {
 
     private init() {
         isConfigured = FirebaseBootstrap.configureIfAvailable()
+        #if DEBUG
+        if NaldamRuntime.isStoreScreenshot {
+            userID = "screenshot-owner"
+            return
+        }
+        #endif
         guard isConfigured else { return }
         userID = Auth.auth().currentUser?.uid
         authListener = Auth.auth().addStateDidChangeListener { [weak self] _, _ in
