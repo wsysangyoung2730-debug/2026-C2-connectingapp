@@ -53,6 +53,14 @@ struct InterestBottomSheet: View {
 
                 InterestEnvelopePocket()
                     .frame(height: pocketHeight)
+                    .overlay(alignment: .bottom) {
+                        if sheetState == .expanded {
+                            // Continue the envelope below the editor into the home-indicator area.
+                            Color.naldamEnvelope
+                                .frame(height: geometry.safeAreaInsets.bottom)
+                                .offset(y: geometry.safeAreaInsets.bottom)
+                        }
+                    }
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
             }
