@@ -104,7 +104,7 @@ struct JournalHistoryView: View {
         .navigationTitle("나의 기록")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
-        .toolbar(.hidden, for: .tabBar)
+        .naldamTabBarHidden()
         .searchable(text: $searchText, prompt: "질문이나 기록 내용 찾기")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
