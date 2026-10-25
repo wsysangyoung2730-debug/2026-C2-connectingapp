@@ -42,16 +42,16 @@ struct NaldamProfileView: View {
                         Label("내 기록은 나만 보기", systemImage: "lock").font(.headline)
                         Text("질문에 쓴 답변과 임시 저장은 이 기기에 보관돼요. 발견이나 대화에 자동으로 공개되지 않아요.")
                         Divider()
-                        Label(session.userID == nil ? "나와 닮은 관심사로 연결" : "Apple 계정에 연결됨", systemImage: "person.2").font(.headline)
+                        Label(session.userID == nil ? "나와 닮은 관심사로 연결" : "계정에 연결됨", systemImage: "person.2").font(.headline)
                         Text("로그인하면 공개한 이름과 관심사로 친구를 찾고, 서로 수락한 대화에서 메시지를 주고받을 수 있어요. 프로필 사진은 이 기기에만 보관해요.")
-                        Button(session.userID == nil ? "Apple 계정으로 연결하기" : "공개 프로필 수정") { showAccount = true }
+                        Button(session.userID == nil ? "로그인하고 연결하기" : "공개 프로필 수정") { showAccount = true }
                             .frame(minHeight: 44).accessibilityIdentifier("profile.account")
                         if session.userID != nil {
                             Button("로그아웃", role: .destructive) { showSignOut = true }
                                 .frame(minHeight: 44).accessibilityIdentifier("profile.signOut")
                         }
                         Divider()
-                        Text("앱을 삭제하면 기기에만 저장한 일기·사진·초안이 사라질 수 있어요. 전송된 대화는 같은 Apple 계정으로 다시 연결하면 확인할 수 있어요.")
+                        Text("앱을 삭제하면 기기에만 저장한 일기·사진·초안이 사라질 수 있어요. 전송된 대화는 처음 로그인한 방식의 같은 계정으로 다시 연결하면 확인할 수 있어요.")
                             .foregroundStyle(Color.naldamSecondary)
                     }.font(.subheadline).lineSpacing(5).naldamCard()
                     NaldamLegalLinks()
@@ -88,7 +88,7 @@ struct NaldamProfileView: View {
         .confirmationDialog("로그아웃할까요?", isPresented: $showSignOut, titleVisibility: .visible) {
             Button("로그아웃", role: .destructive) { session.signOut(); showAccount = false }
         } message: {
-            Text("이 기기의 개인 기록은 남아 있어요. 대화는 같은 Apple 계정으로 다시 연결하면 볼 수 있어요.")
+            Text("이 기기의 개인 기록은 남아 있어요. 대화는 처음 로그인한 방식의 같은 계정으로 다시 연결하면 볼 수 있어요.")
         }
     }
 }

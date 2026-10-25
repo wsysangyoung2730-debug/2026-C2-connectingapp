@@ -3,6 +3,16 @@ import SwiftUI
 
 struct SignInGateView: View {
     @ObservedObject private var session = AppleSession.shared
+    @State private var showEmailSignIn = false
+
+    private var showsSignInOptions: Bool {
+        #if DEBUG
+        // Exercise form UI while FirebaseBootstrap keeps all test traffic offline.
+        if NaldamRuntime.isUITesting,
+           ProcessInfo.processInfo.arguments.contains("-email-auth-ui-testing") { return true }
+        #endif
+        return session.isConfigured
+    }
 
     var body: some View {
         ScrollView {
@@ -14,17 +24,31 @@ struct SignInGateView: View {
                 Text("작은 인사로 시작하는 사이")
                     .font(.title2.weight(.bold))
                     .foregroundStyle(Color.naldamInk)
-                Text("Apple 계정으로 연결하고\n닮은 관심사를 가진 사람과 이야기를 나눠보세요.")
+                Text("계정으로 연결하고\n닮은 관심사를 가진 사람과 이야기를 나눠보세요.")
                     .font(.subheadline).lineSpacing(5)
                     .foregroundStyle(Color.naldamSecondary)
                     .multilineTextAlignment(.center)
-                if session.isConfigured {
+                if showsSignInOptions {
                     SignInWithAppleButton(.continue, onRequest: session.prepare, onCompletion: session.complete)
                         .signInWithAppleButtonStyle(.black)
                         .frame(height: 52)
                         .clipShape(RoundedRectangle(cornerRadius: 14))
-                        .disabled(session.isBusy)
+                        .disabled(session.isBusy || !session.isConfigured)
                         .accessibilityIdentifier("auth.appleSignIn")
+                    HStack(spacing: 14) {
+                        Rectangle().fill(Color.naldamLine).frame(height: 1)
+                        Text("또는").font(.caption).foregroundStyle(Color.naldamSecondary)
+                        Rectangle().fill(Color.naldamLine).frame(height: 1)
+                    }.accessibilityHidden(true)
+                    Button {
+                        session.errorMessage = nil
+                        showEmailSignIn = true
+                    } label: {
+                        Label("이메일로 로그인", systemImage: "envelope")
+                    }
+                    .buttonStyle(NaldamPrimaryButtonStyle())
+                    .disabled(session.isBusy)
+                    .accessibilityIdentifier("auth.emailSignIn")
                     if session.isBusy { ProgressView("계정에 연결하고 있어요") }
                 } else {
                     Label(FirebaseBootstrap.configurationMessage ?? "연결 설정을 준비 중이에요.", systemImage: "envelope.badge")
@@ -49,5 +73,8 @@ struct SignInGateView: View {
         }
         .background { NaldamEnvelopeBackground() }
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(isPresented: $showEmailSignIn) {
+            EmailSignInView()
+        }
     }
 }

@@ -11,12 +11,20 @@ final class AppleSession: ObservableObject {
 
     @Published private(set) var userID: String?
     @Published var errorMessage: String?
+    @Published var infoMessage: String?
     @Published private(set) var isBusy = false
     let isConfigured: Bool
 
     private var currentNonce: String?
     private var authListener: AuthStateDidChangeListenerHandle?
     private var signInTask: Task<Void, Never>?
+    private var emailClient: any EmailAuthClient = FirebaseEmailAuthClient()
+
+    /// Unit tests inject a client without configuring Firebase or touching the keychain.
+    init(emailClient: any EmailAuthClient, isConfigured: Bool) {
+        self.emailClient = emailClient
+        self.isConfigured = isConfigured
+    }
 
     private init() {
         isConfigured = FirebaseBootstrap.configureIfAvailable()
@@ -38,8 +46,9 @@ final class AppleSession: ObservableObject {
     }
 
     func prepare(_ request: ASAuthorizationAppleIDRequest) {
-        errorMessage = nil
         guard isConfigured, !isBusy else { return }
+        errorMessage = nil
+        infoMessage = nil
         do {
             let nonce = try AppleNonce.make()
             currentNonce = nonce
@@ -53,9 +62,87 @@ final class AppleSession: ObservableObject {
         }
     }
 
+    @discardableResult
+    func signIn(email: String, password: String) async -> Bool {
+        guard beginEmailOperation() else { return false }
+        defer { isBusy = false }
+        guard let email = EmailAuthenticationValidation.email(email) else {
+            errorMessage = "이메일 주소를 확인해 주세요."
+            return false
+        }
+        guard EmailAuthenticationValidation.acceptsSignInPassword(password) else {
+            errorMessage = "비밀번호를 입력해 주세요."
+            return false
+        }
+        do {
+            userID = try await emailClient.signIn(email: email, password: password)
+            return true
+        } catch {
+            errorMessage = EmailAuthErrorPresentation.message(for: error, operation: .signIn)
+            return false
+        }
+    }
+
+    @discardableResult
+    func signUp(email: String, password: String) async -> Bool {
+        guard beginEmailOperation() else { return false }
+        defer { isBusy = false }
+        guard let email = EmailAuthenticationValidation.email(email) else {
+            errorMessage = "이메일 주소를 확인해 주세요."
+            return false
+        }
+        guard EmailAuthenticationValidation.acceptsNewPassword(password) else {
+            errorMessage = "비밀번호는 8자 이상, 4,096자 이내로 입력해 주세요."
+            return false
+        }
+        do {
+            // Firebase signs the new account in as part of account creation.
+            userID = try await emailClient.signUp(email: email, password: password)
+            return true
+        } catch {
+            errorMessage = EmailAuthErrorPresentation.message(for: error, operation: .signUp)
+            return false
+        }
+    }
+
+    @discardableResult
+    func sendPasswordReset(email: String) async -> Bool {
+        guard beginEmailOperation() else { return false }
+        defer { isBusy = false }
+        guard let email = EmailAuthenticationValidation.email(email) else {
+            errorMessage = "이메일 주소를 확인해 주세요."
+            return false
+        }
+        do {
+            try await emailClient.sendPasswordReset(email: email)
+            infoMessage = EmailAuthErrorPresentation.resetConfirmation
+            return true
+        } catch {
+            // Match the success response even when enumeration protection is disabled server-side.
+            if EmailAuthErrorPresentation.isUnknownResetAccount(error) {
+                infoMessage = EmailAuthErrorPresentation.resetConfirmation
+                return true
+            }
+            errorMessage = EmailAuthErrorPresentation.message(for: error, operation: .reset)
+            return false
+        }
+    }
+
+    private func beginEmailOperation() -> Bool {
+        guard !isBusy else { return false }
+        errorMessage = nil
+        infoMessage = nil
+        guard isConfigured else {
+            errorMessage = "아직 계정 연결을 준비 중이에요. 잠시 후 다시 시도해 주세요."
+            return false
+        }
+        isBusy = true
+        return true
+    }
+
     func complete(_ result: Result<ASAuthorization, Error>) {
-        guard isConfigured else { isBusy = false; return }
-        let nonce = currentNonce
+        // A canceled/late Apple callback must not unlock an in-flight email request.
+        guard isConfigured, let nonce = currentNonce else { return }
         currentNonce = nil
         switch result {
         case .failure(let error):
@@ -66,7 +153,7 @@ final class AppleSession: ObservableObject {
         case .success(let authorization):
             guard let apple = authorization.credential as? ASAuthorizationAppleIDCredential,
                   let token = apple.identityToken,
-                  let idToken = String(data: token, encoding: .utf8), let nonce else {
+                  let idToken = String(data: token, encoding: .utf8) else {
                 isBusy = false
                 errorMessage = "로그인 응답을 확인하지 못했어요. 다시 시도해 주세요."
                 return
@@ -93,6 +180,7 @@ final class AppleSession: ObservableObject {
             try Auth.auth().signOut()
             userID = nil
             errorMessage = nil
+            infoMessage = nil
             currentNonce = nil
         } catch {
             errorMessage = "로그아웃하지 못했어요. 다시 시도해 주세요."

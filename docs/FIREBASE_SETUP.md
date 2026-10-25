@@ -1,15 +1,15 @@
-# Apple 로그인 · 실제 1:1 채팅 설정
+# Apple·이메일 로그인 · 실제 1:1 채팅 설정
 
 이 브랜치는 기존 봉투 UI에서 Apple 로그인, 공개 프로필, 대화 요청 및 1:1 텍스트 메시지를 연결합니다. 아래 프로젝트 설정이 완료되기 전에는 홈의 기록 기능을 계속 사용할 수 있고, 발견·대화에는 연결 준비 안내가 표시됩니다. 가짜 Firebase 설정 파일을 넣을 필요가 없습니다.
 
-## 현재 설정 상태 · 2026-10-23
+## 현재 설정 상태 · 2026-10-26
 
 | 항목 | 확인한 상태 |
 | --- | --- |
 | Firebase 프로젝트 | `naldam-dev`, Spark 요금제. Google Analytics와 Gemini는 꺼둠 |
 | Firebase iOS 앱 | `날담 iOS 개발`, Bundle ID `com.Tom.C2-connecting-app`으로 등록 |
 | Firebase CLI | 사용자 승인 후 이 Mac에서 공식 CLI 로그인 완료 |
-| Firebase Authentication | Apple 제공자 활성화. Services ID와 OAuth 코드 흐름 필드는 공란 |
+| Firebase Authentication | Apple 및 이메일/비밀번호 제공자 활성화. 이메일 링크 로그인은 사용하지 않음. Apple Services ID와 OAuth 코드 흐름 필드는 공란 |
 | Apple Developer | Team `36545XSWN8`의 `Naldam` App ID를 Primary로 설정하고 Sign in with Apple 활성화 |
 | Apple 개인키 | 이번 설정에서는 새 `.p8` 키를 만들지 않음 |
 | Firestore | Standard edition, `(default)`, 서울 `asia-northeast3`. Production mode로 생성 |
@@ -17,7 +17,7 @@
 | 앱 설정 파일 | 공식 CLI의 `apps:sdkconfig IOS`로 받아 `C2_connecting app/GoogleService-Info.plist`에 저장. 프로젝트·Bundle ID 일치 및 Git 제외 확인 |
 | 앱 빌드 | Simulator Debug 빌드 성공. 빌드된 앱에 설정 파일이 정확히 한 번 포함되며 원본 설정과 일치함을 확인 |
 | Xcode 서명 Team | 앱의 Debug·Release 모두 `36545XSWN8`로 설정 |
-| 실제 연결 검증 | 실제 Apple 로그인과 서로 다른 두 iPhone 사이의 메시지 전달은 아직 검증하지 않음 |
+| 실제 연결 검증 | 두 이메일 계정으로 실제 서버의 프로필·요청·수락·실시간 메시지 왕복·로그아웃 후 접근 차단·재로그인 복원 확인. 실제 Apple 로그인과 서로 다른 두 iPhone 사이의 전달은 별도 미검증 |
 
 콘솔·Apple App ID 설정, 앱 설정 파일 저장과 빌드 포함 확인을 마쳤습니다. **실기기 서명·프로비저닝 확인 → 실제 Apple 로그인 → 두 기기 간 채팅 검증**이 남아 있습니다. 아래 절차는 다른 개발 환경에서 재현하거나 이후 설정을 갱신할 때도 사용합니다.
 
@@ -74,6 +74,32 @@ Apple로 로그인은 **Apple Developer Program에 가입된 팀**의 설정이 
 Services ID는 웹 인증용 식별자이며, 네이티브 앱의 Bundle ID와 같은 값으로 취급하지 않습니다. 다만 현재 [Firebase iOS 공식 문서의 Token revocation 절](https://firebase.google.com/docs/auth/ios/apple#token_revocation)은 Services ID와 OAuth 코드 흐름을 함께 설정하도록 안내합니다. 따라서 네이티브 철회에 Services ID가 언제나 필수이거나 언제나 불필요하다고 여기서 단정하지 않습니다. 철회 기능을 구현할 때 해당 시점의 Firebase 요구 사항과 앱 등록 정보를 확인하고, 네이티브 authorization code로 실기기 철회가 성공하는지 검증합니다. 이번 로그인 연결을 위해 웹용 Services ID를 미리 만들 필요는 없습니다.
 
 앱에서는 재인증으로 받은 Apple authorization code를 `Auth.auth().revokeToken(withAuthorizationCode:)`에 전달한 뒤 Firebase 계정과 관련 데이터를 삭제하는 처리까지 구현해야 합니다. 콘솔의 OAuth 설정만으로 계정 삭제 기능이 완성되지는 않습니다.
+
+## 이메일·비밀번호 로그인
+
+Firebase Console → Authentication → 로그인 방법에서 **이메일/비밀번호**를 사용 설정합니다. 이메일 링크 로그인은 필요하지 않습니다. 기존 Apple 로그인은 유지합니다.
+
+앱에서 이메일을 아이디로 사용합니다. 가입 비밀번호는 8~4,096자이며 확인 입력이 일치해야 합니다. 로그인은 기존 계정과의 호환을 위해 가입 길이 규칙을 재적용하지 않습니다. 비밀번호는 Firebase Authentication에만 전달하고 앱 저장소·Firestore·로그에 저장하지 않습니다. 재설정 안내는 해당 이메일의 계정 존재 여부를 구분하지 않습니다. Apple 계정과 이메일 계정의 자동 연결 기능은 제공하지 않습니다.
+
+단위 테스트 및 일반 UI 테스트는 실제 서버에 연결하지 않습니다. `-naldam-ui-testing -email-auth-ui-testing`은 DEBUG에서 이메일 폼만 표시하며 Firebase 차단은 유지합니다.
+
+실제 서버 검증 스크립트는 명시적으로 선택할 때만 실행하며, 두 계정과 검토용 프로필·채팅을 생성합니다. 일반 `npm test`에 포함하지 않습니다. 인증 파일은 저장소 밖의 비공개 경로를 지정해야 하며 파일 권한은 0600입니다. 같은 파일을 사용하면 기존 검토 계정으로 재검증합니다.
+
+```sh
+NALDAM_LIVE_PROJECT=naldam-dev node firebase/scripts/check-live-email-chat.mjs \
+  'C2_connecting app/GoogleService-Info.plist' \
+  /absolute/private/path/email-review-accounts.json
+```
+
+2026-10-26 실제 서버에서 두 계정 인증, 프로필 공개, 비로그인 접근 거부, 수락 전 메시지 거부, 발신자 자기 수락 거부, 수신자 수락, 양방향 실시간 수신, 읽음 상태 분리, 로그아웃·재로그인을 검증했습니다. 테스트 주소는 예약된 `.invalid` 도메인을 사용하므로 메일 수신 테스트용이 아닙니다. 재설정 메일 수신·비밀번호 변경과 Apple 실기기 로그인은 이 검증에 포함하지 않습니다. 심사용 비밀번호를 Git·공개 이슈에 올리지 않습니다.
+
+같은 날 정상 서명된 Naldam QA 시뮬레이터에서 실제 앱 화면으로 A 로그인·메시지 전송 → 로그아웃 → B 로그인·수신·답장 → 로그아웃 → A 재로그인·답장 복원을 확인했습니다. `LiveEmailChatUITests`는 테스트 러너에 `NALDAM_LIVE_EMAIL_ACCOUNTS_JSON`을 명시적으로 제공할 때만 실행하고, 평소에는 건너뜁니다. 앱에는 샘플·인증 우회 인수를 전달하지 않습니다. 총 단위 테스트 47개, 이메일 폼 UI 테스트 2개, 실제 계정 UI 테스트 1개가 통과했습니다.
+
+실제 Firebase 인증은 iOS 보안 저장소를 사용하므로 시뮬레이터도 정상 서명해야 합니다. `CODE_SIGNING_ALLOWED=NO` 빌드는 오프라인 단위·폼 테스트에만 사용합니다. 실제 계정 UI 테스트는 `CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=-`로 빌드한 후 실행했습니다. 테스트 러너 설정과 결과에는 인증 입력 정보가 포함될 수 있으므로 공개하지 않습니다. 검증 후 심사용 비밀번호를 새 값으로 갱신하고 동일 UID로 재로그인을 확인했습니다.
+
+개인정보처리방침 버전 1.1에는 이메일 주소와 Firebase 인증 처리를 반영했고, 앱 매니페스트에는 사용자 연결·앱 기능 목적·추적 없음으로 이메일 주소를 선언합니다. App Store Connect의 이메일 수집 항목은 별도로 맞춰야 합니다.
+
+[Firebase 이메일 인증 구현](https://firebase.google.com/docs/auth/ios/password-auth)
 
 ## 3. Firestore 만들고 접근 규칙 배포
 
