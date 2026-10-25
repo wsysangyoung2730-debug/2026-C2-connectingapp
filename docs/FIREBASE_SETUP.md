@@ -97,7 +97,11 @@ NALDAM_LIVE_PROJECT=naldam-dev node firebase/scripts/check-live-email-chat.mjs \
 
 실제 Firebase 인증은 iOS 보안 저장소를 사용하므로 시뮬레이터도 정상 서명해야 합니다. `CODE_SIGNING_ALLOWED=NO` 빌드는 오프라인 단위·폼 테스트에만 사용합니다. 실제 계정 UI 테스트는 `CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=-`로 빌드한 후 실행했습니다. 테스트 러너 설정과 결과에는 인증 입력 정보가 포함될 수 있으므로 공개하지 않습니다. 검증 후 심사용 비밀번호를 새 값으로 갱신하고 동일 UID로 재로그인을 확인했습니다.
 
-개인정보처리방침 버전 1.1에는 이메일 주소와 Firebase 인증 처리를 반영했고, 앱 매니페스트에는 사용자 연결·앱 기능 목적·추적 없음으로 이메일 주소를 선언합니다. App Store Connect의 이메일 수집 항목은 별도로 맞춰야 합니다.
+개인정보처리방침 버전 1.1에는 이메일 주소와 Firebase 인증 처리를 반영했고, 앱 매니페스트에는 사용자 연결·앱 기능 목적·추적 없음으로 이메일 주소를 선언합니다. 2026-10-26 App Store Connect에도 같은 내용으로 이메일 주소를 추가하여 총 8개 데이터 유형을 게시했습니다.
+
+App Store Connect의 비공개 심사 정보에는 전용 이메일 계정과 로그인·대화 확인 절차를 저장했습니다. 두 번째 검토 계정은 심사 메모에서만 제공합니다. 이 계정들은 실제 Firebase 인증과 권한 규칙을 사용하며, 개인 계정이나 인증을 우회하는 계정이 아닙니다. 스토어 설명도 Apple 또는 이메일 로그인으로 수정했습니다. 심사 정보 저장과 실제 심사 제출은 별개의 단계입니다.
+
+이메일 인증을 포함한 버전 1.0 빌드 2는 2026-10-26 App Store Connect 업로드에 성공했습니다. 외부 바이너리인 FirebaseFirestoreInternal, absl, grpc, grpcpp, openssl_grpc의 dSYM 누락 경고가 있었고 앱 자체 dSYM은 아카이브에 포함됐습니다. 외부 라이브러리 내부의 충돌 분석에는 제약이 남습니다. 실제 Apple 로그인, 두 실기기 간 검증, TestFlight 설치, 계정 삭제·신고 기능 등 출시 전 확인 항목은 GitHub 이슈 #20에서 추적합니다.
 
 [Firebase 이메일 인증 구현](https://firebase.google.com/docs/auth/ios/password-auth)
 
