@@ -7,6 +7,7 @@ struct NaldamProfileView: View {
     @ObservedObject private var store = LiveChatStore.shared
     @State private var showAccount = false
     @State private var showSignOut = false
+    @State private var showDeletion = false
     @AppStorage("profilePhotoJPEG") private var photoData = Data()
     @Environment(\.dismiss) private var dismiss
     private var validName: String { editedName.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -49,6 +50,8 @@ struct NaldamProfileView: View {
                         if session.userID != nil {
                             Button("로그아웃", role: .destructive) { showSignOut = true }
                                 .frame(minHeight: 44).accessibilityIdentifier("profile.signOut")
+                            Button("계정 삭제", role: .destructive) { showDeletion = true }
+                                .frame(minHeight: 44).accessibilityIdentifier("profile.deleteAccount")
                         }
                         Divider()
                         Text("앱을 삭제하면 기기에만 저장한 일기·사진·초안이 사라질 수 있어요. 전송된 대화는 처음 로그인한 방식의 같은 계정으로 다시 연결하면 확인할 수 있어요.")
@@ -90,5 +93,6 @@ struct NaldamProfileView: View {
         } message: {
             Text("이 기기의 개인 기록은 남아 있어요. 대화는 처음 로그인한 방식의 같은 계정으로 다시 연결하면 볼 수 있어요.")
         }
+        .fullScreenCover(isPresented: $showDeletion) { DeleteAccountView() }
     }
 }

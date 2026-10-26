@@ -4,15 +4,16 @@ import assert from 'node:assert/strict';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
 import {
   collection, deleteDoc, doc, getDoc, getDocs, limit, onSnapshot, orderBy,
-  query, runTransaction, serverTimestamp, setDoc, Timestamp, updateDoc, where,
+  query, runTransaction, serverTimestamp, setDoc, Timestamp, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 
 let env;
 const apple = uid => env.authenticatedContext(uid, {
   firebase: { sign_in_provider: 'apple.com', identities: {} },
+  auth_time: Math.floor(Date.now() / 1000),
 }).firestore();
 const profile = (name = '상영', interests = ['기록', '산책']) => ({
-  name, interests, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  name, interests, termsVersion: 1, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
 });
 const pending = (senderID = 'alice', recipientID = 'bob') => ({
   members: [senderID, recipientID].sort(), senderID, recipientID,
@@ -251,4 +252,114 @@ test('unrecognized collections and nested paths are denied by default', async ()
   await assertFails(setDoc(doc(alice, 'journals/private'), { answer: '개인 기록' }));
   await assertFails(setDoc(doc(alice, 'users/alice'), { admin: true }));
   await assertFails(setDoc(doc(alice, 'profiles/alice/private/secret'), { value: 'hidden' }));
+});
+
+const marker = db => doc(db, 'accountDeletions/alice');
+const reportRef = (db, owner = 'alice', id = 'bob__message-1') => doc(db, `contentReports/${owner}/items/${id}`);
+const reportFields = () => ({targetUserID: 'bob', roomID: 'alice__bob', messageID: 'message-1', reason: 'harassment', details: '검토 요청', status: 'pending', createdAt: serverTimestamp()});
+
+test('deletion requires recent own authentication and cannot be undone or forged', async () => {
+  await seedProfiles();
+  const stale = env.authenticatedContext('alice', {firebase: {sign_in_provider:'password'}, auth_time: 1}).firestore();
+  await assertFails(setDoc(marker(stale), {createdAt: serverTimestamp()}));
+  await assertFails(setDoc(marker(apple('bob')), {createdAt: serverTimestamp()}));
+  await assertSucceeds(setDoc(marker(apple('alice')), {createdAt: serverTimestamp()}));
+  await assertFails(deleteDoc(marker(apple('alice'))));
+  await assertFails(updateDoc(marker(apple('alice')), {createdAt: serverTimestamp()}));
+  await assertFails(getDoc(marker(apple('bob'))));
+});
+
+test('deletion freezes both-direction contact, profile recreation and state writes', async () => {
+  await activateRoom();
+  const a=apple('alice'), b=apple('bob');
+  await setDoc(marker(a), {createdAt: serverTimestamp()});
+  await assertFails(setDoc(messageRef(a), message('alice')));
+  await assertFails(setDoc(messageRef(b), message('bob')));
+  await assertFails(updateDoc(doc(a,'profiles/alice'), {name:'복원',updatedAt:serverTimestamp()}));
+  await assertFails(setDoc(doc(a,'rooms/alice__bob/states/alice'), {archived:true}));
+  await deleteDoc(doc(a,'profiles/alice'));
+  await assertFails(setDoc(doc(a,'profiles/alice'), profile()));
+});
+
+test('deletion cleans only owned rooms, including both message authors and state', async () => {
+  await activateRoom();
+  const a=apple('alice'), b=apple('bob'), outsider=apple('mallory');
+  await setDoc(messageRef(a,'a'),message('alice'));
+  await setDoc(messageRef(b,'b'),message('bob'));
+  await setDoc(doc(b,'rooms/alice__bob/states/bob'),{archived:false});
+  await setDoc(marker(a), {createdAt:serverTimestamp()});
+  await assertFails(deleteDoc(messageRef(outsider,'b')));
+  const docs=await assertSucceeds(getDocs(query(collection(a,'rooms'),where('members','array-contains','alice'))));
+  assert.equal(docs.size,1);
+  const messages=await assertSucceeds(getDocs(collection(a,'rooms/alice__bob/messages')));
+  const batch=writeBatch(a);
+  messages.docs.forEach(d=>batch.delete(d.ref));
+  batch.delete(doc(a,'rooms/alice__bob/states/bob'));
+  batch.delete(doc(a,'rooms/alice__bob/states/alice'));
+  batch.delete(roomRef(a));
+  await assertSucceeds(batch.commit());
+  assert.equal((await getDocs(query(collection(a,'rooms'),where('members','array-contains','alice')))).size,0);
+  await assertFails(setDoc(roomRef(b),pending('bob','alice')));
+});
+
+test('interrupted cleanup can resume and ordinary users cannot erase messages', async () => {
+  await activateRoom(); const a=apple('alice'), b=apple('bob');
+  await setDoc(messageRef(a,'a'),message('alice'));
+  await setDoc(messageRef(b,'b'),message('bob'));
+  await assertFails(deleteDoc(messageRef(a,'a')));
+  await setDoc(marker(a),{createdAt:serverTimestamp()});
+  await deleteDoc(messageRef(a,'a'));
+  const resumed=apple('alice');
+  const left=await getDocs(collection(resumed,'rooms/alice__bob/messages'));
+  assert.deepEqual(left.docs.map(d=>d.id),['b']);
+  await assertSucceeds(deleteDoc(messageRef(resumed,'b')));
+});
+
+test('server filters harmful profile tags and messages even without the app', async () => {
+  await activateRoom(); const a=apple('alice');
+  await assertFails(setDoc(messageRef(a),message('alice','씨 발')));
+  await assertFails(updateDoc(doc(a,'profiles/alice'),{name:'개새끼',updatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(doc(a,'profiles/alice'),{interests:['강간'],updatedAt:serverTimestamp()}));
+  await assertSucceeds(setDoc(messageRef(a),message('alice','따뜻한 산책 이야기')));
+});
+
+test('terms consent is required when publishing and sending', async () => {
+  const a=apple('alice');
+  const data=profile(); delete data.termsVersion;
+  await assertFails(setDoc(doc(a,'profiles/alice'),data));
+  await activateRoom();
+  await env.withSecurityRulesDisabled(async ctx=>updateDoc(doc(ctx.firestore(),'profiles/alice'),{termsVersion:0}));
+  await assertFails(setDoc(messageRef(a),message('alice')));
+});
+
+test('reports are private, immutable, tied to actual sender and cannot be self-approved', async () => {
+  await activateRoom(); const a=apple('alice'),b=apple('bob');
+  await setDoc(messageRef(b),message('bob'));
+  await assertSucceeds(setDoc(reportRef(a),reportFields()));
+  await assertSucceeds(getDoc(reportRef(a)));
+  await assertFails(getDoc(reportRef(b)));
+  await assertFails(getDocs(collection(b,'contentReports/alice/items')));
+  await assertFails(updateDoc(reportRef(a),{status:'resolved'}));
+  await assertFails(setDoc(reportRef(a,'alice','bad'),{...reportFields(),targetUserID:'alice'}));
+  await assertFails(setDoc(reportRef(apple('mallory'),'mallory'),reportFields()));
+});
+
+test('profile reports and atomic reporting with blocking work without exposing reports',async()=>{
+  await seedProfiles(); const a=apple('alice');
+  const batch=writeBatch(a);
+  batch.set(reportRef(a,'alice','profile'),{...reportFields(),roomID:'',messageID:''});
+  batch.set(doc(a,'users/alice/blocks/bob'),{createdAt:serverTimestamp()});
+  await assertSucceeds(batch.commit());
+  await assertFails(setDoc(reportRef(a,'alice','missing'),{...reportFields(),messageID:'missing'}));
+  await assertFails(setDoc(reportRef(a,'alice','long'),{...reportFields(),details:'x'.repeat(1001)}));
+});
+
+test('restricted account cannot send, accept or republish, but can delete its account',async()=>{
+  await activateRoom(); const a=apple('alice');
+  await env.withSecurityRulesDisabled(async ctx=>setDoc(doc(ctx.firestore(),'accountRestrictions/alice'),{createdAt:Timestamp.now()}));
+  await assertFails(setDoc(messageRef(a),message('alice')));
+  await assertFails(updateDoc(doc(a,'profiles/alice'),{name:'다시',updatedAt:serverTimestamp()}));
+  await assertFails(deleteDoc(doc(a,'accountRestrictions/alice')));
+  await assertSucceeds(setDoc(marker(a),{createdAt:serverTimestamp()}));
+  await assertSucceeds(deleteDoc(roomRef(a)));
 });

@@ -30,7 +30,7 @@ struct EmailSignInView: View {
         }
     }
 
-    private enum Field: Hashable { case email, password, confirmation }
+    private enum Field: Hashable { case email }
 
     @ObservedObject private var session = AppleSession.shared
     @Environment(\.dismiss) private var dismiss
@@ -44,11 +44,13 @@ struct EmailSignInView: View {
     @State private var resetSent = false
     @State private var requestTask: Task<Void, Never>?
     @FocusState private var focusedField: Field?
+    @State private var confirmingSignUp = false
+    @ScaledMetric(relativeTo: .body) private var secureFieldHeight = 24.0
 
     private var cleanEmail: String { email.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var isBusy: Bool { session.isBusy || requestInFlight }
     private var canSubmit: Bool {
-        !isBusy && !cleanEmail.isEmpty && (mode == .resetPassword || !password.isEmpty)
+        !isBusy && !cleanEmail.isEmpty && (mode == .resetPassword || (confirmingSignUp ? !confirmation.isEmpty : !password.isEmpty))
     }
     private var errorMessage: String? {
         validationMessage ?? (attemptedCurrentMode ? session.errorMessage : nil)
@@ -60,16 +62,20 @@ struct EmailSignInView: View {
                 VStack(alignment: .leading, spacing: 26) {
                     heading
                     VStack(alignment: .leading, spacing: 18) {
-                        emailField
-                        if mode != .resetPassword {
-                            passwordField
-                            if mode == .signUp { confirmationField }
+                        // Keep one secure input on screen at a time. This also gives
+                        // the password confirmation enough room above the keyboard.
+                        if confirmingSignUp {
+                            Text(cleanEmail).font(.subheadline).foregroundStyle(Color.naldamSecondary)
+                            confirmationField
+                        } else {
+                            emailField
+                            if mode != .resetPassword { passwordField }
                         }
                         statusMessage
                         Button(action: submit) {
                             HStack(spacing: 10) {
                                 if isBusy { ProgressView().tint(.white) }
-                                Text(isBusy ? "잠시만 기다려주세요" : mode.action)
+                                Text(isBusy ? "잠시만 기다려주세요" : (mode == .signUp && !confirmingSignUp ? "다음" : mode.action))
                             }
                         }
                         .buttonStyle(NaldamPrimaryButtonStyle())
@@ -99,10 +105,15 @@ struct EmailSignInView: View {
                         .disabled(isBusy)
                         .accessibilityIdentifier("auth.email.close")
                 }
-                ToolbarItemGroup(placement: .keyboard) {
+            }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if focusedField != nil {
+                HStack {
                     Spacer()
                     Button("입력 완료") { focusedField = nil }
-                }
+                        .font(.body.weight(.semibold)).frame(minHeight: 44)
+                }.padding(.horizontal, 24).background(Color.appBackground)
             }
         }
         .tint(.naldamAccent)
@@ -126,7 +137,7 @@ struct EmailSignInView: View {
             Text(mode == .signIn ? "다시 만나 반가워요" : mode == .signUp ? "작은 인사를 시작해요" : "다시 연결할 수 있어요")
                 .font(.title2.weight(.bold))
                 .fixedSize(horizontal: false, vertical: true)
-            Text(mode.description)
+            Text(confirmingSignUp ? "비밀번호를 한 번 더 입력하면\n나의 계정을 만들 수 있어요." : mode.description)
                 .font(.subheadline).lineSpacing(5)
                 .foregroundStyle(Color.naldamSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -142,11 +153,11 @@ struct EmailSignInView: View {
                 .keyboardType(.emailAddress)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .submitLabel(mode == .resetPassword ? .send : .next)
+                .submitLabel(mode == .resetPassword ? .send : .done)
                 .focused($focusedField, equals: .email)
                 .onSubmit {
                     if mode == .resetPassword { submit() }
-                    else { focusedField = .password }
+                    else { focusedField = nil }
                 }
                 .modifier(AccountFieldStyle())
                 .disabled(isBusy)
@@ -158,37 +169,21 @@ struct EmailSignInView: View {
     private var passwordField: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("비밀번호").font(.subheadline.weight(.semibold))
-            SecureField(mode == .signUp ? "8자 이상 입력" : "비밀번호 입력", text: $password)
-                .textContentType(mode == .signUp ? .newPassword : .password)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .submitLabel(mode == .signUp ? .next : .go)
-                .focused($focusedField, equals: .password)
-                .onSubmit {
-                    if mode == .signUp { focusedField = .confirmation }
-                    else { submit() }
-                }
-                .modifier(AccountFieldStyle())
-                .disabled(isBusy)
-                .accessibilityLabel("비밀번호")
-                .accessibilityIdentifier("auth.email.password")
+            AccountPasswordField(text: $password, placeholder: mode == .signUp ? "8자 이상 입력" : "비밀번호 입력",
+                                 isEnabled: !isBusy,
+                                 accessibilityID: "auth.email.password", accessibilityName: "비밀번호", onFocus: { focusedField = nil }, onSubmit: submit)
+                .id(mode)
+                .frame(height: secureFieldHeight).modifier(AccountFieldStyle())
         }
     }
 
     private var confirmationField: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("비밀번호 확인").font(.subheadline.weight(.semibold))
-            SecureField("비밀번호를 한 번 더 입력", text: $confirmation)
-                .textContentType(.newPassword)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .submitLabel(.go)
-                .focused($focusedField, equals: .confirmation)
-                .onSubmit(submit)
-                .modifier(AccountFieldStyle())
-                .disabled(isBusy)
-                .accessibilityLabel("비밀번호 확인")
-                .accessibilityIdentifier("auth.email.confirmPassword")
+            AccountPasswordField(text: $confirmation, placeholder: "비밀번호를 한 번 더 입력",
+                                 isEnabled: !isBusy,
+                                 accessibilityID: "auth.email.confirmPassword", accessibilityName: "비밀번호 확인", onFocus: { focusedField = nil }, onSubmit: submit)
+                .frame(height: secureFieldHeight).modifier(AccountFieldStyle())
         }
     }
 
@@ -198,6 +193,7 @@ struct EmailSignInView: View {
                 .font(.footnote).lineSpacing(4)
                 .foregroundStyle(Color.naldamAccent)
                 .fixedSize(horizontal: false, vertical: true)
+                .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("auth.email.error")
         } else if resetSent {
             Label(EmailAuthErrorPresentation.resetConfirmation, systemImage: "envelope.badge")
@@ -223,6 +219,14 @@ struct EmailSignInView: View {
                     .fontWeight(.semibold).frame(minHeight: 44)
                     .accessibilityIdentifier("auth.email.createAccount")
             } else {
+                if confirmingSignUp {
+                    Button("비밀번호 다시 입력하기") {
+                        focusedField = nil
+                        confirmingSignUp = false
+                        clearPasswords()
+                        validationMessage = nil
+                    }.frame(minHeight: 44)
+                }
                 Button("로그인으로 돌아가기") { changeMode(.signIn) }
                     .frame(minHeight: 44)
                     .accessibilityIdentifier("auth.email.backToSignIn")
@@ -236,6 +240,7 @@ struct EmailSignInView: View {
     private func changeMode(_ next: Mode) {
         guard !isBusy else { return }
         focusedField = nil
+        confirmingSignUp = false
         clearPasswords()
         validationMessage = nil
         attemptedCurrentMode = false
@@ -244,6 +249,7 @@ struct EmailSignInView: View {
     }
 
     private func clearPasswords() {
+        confirmingSignUp = false
         password = ""
         confirmation = ""
     }
@@ -261,12 +267,17 @@ struct EmailSignInView: View {
         if mode == .signUp {
             guard EmailAuthenticationValidation.acceptsNewPassword(password) else {
                 validationMessage = "비밀번호는 8자 이상, 4,096자 이내로 입력해 주세요."
-                focusedField = .password
+                focusedField = nil
+                return
+            }
+            if !confirmingSignUp {
+                focusedField = nil
+                confirmingSignUp = true
                 return
             }
             guard password == confirmation else {
                 validationMessage = "두 비밀번호가 같지 않아요. 다시 확인해 주세요."
-                focusedField = .confirmation
+                focusedField = nil
                 return
             }
         }

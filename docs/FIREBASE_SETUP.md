@@ -8,12 +8,12 @@
 | --- | --- |
 | Firebase 프로젝트 | `naldam-dev`, Spark 요금제. Google Analytics와 Gemini는 꺼둠 |
 | Firebase iOS 앱 | `날담 iOS 개발`, Bundle ID `com.Tom.C2-connecting-app`으로 등록 |
-| Firebase CLI | 사용자 승인 후 이 Mac에서 공식 CLI 로그인 완료 |
-| Firebase Authentication | Apple 및 이메일/비밀번호 제공자 활성화. 이메일 링크 로그인은 사용하지 않음. Apple Services ID와 OAuth 코드 흐름 필드는 공란 |
+| Firebase CLI | 사용자 승인 후 이 Mac에서 공식 CLI 로그인 완료. 2026-10-26 오후 세션 만료로 다음 CLI 작업 전 재인증 필요 |
+| Firebase Authentication | Apple 및 이메일/비밀번호 제공자 활성화. 이메일 링크 로그인은 사용하지 않음. Services ID `com.Tom.C2-connecting-app.auth`와 Apple 코드 흐름 설정 저장 및 재열기 확인 완료 |
 | Apple Developer | Team `36545XSWN8`의 `Naldam` App ID를 Primary로 설정하고 Sign in with Apple 활성화 |
-| Apple 개인키 | 이번 설정에서는 새 `.p8` 키를 만들지 않음 |
+| Apple 개인키 | 날담 전용 키 생성·비공개 파일 보관·Firebase 연결 완료. 다운로드를 확보하지 못한 첫 키는 사용자 승인 후 폐기. 키 원문은 Git·앱에 포함하지 않음 |
 | Firestore | Standard edition, `(default)`, 서울 `asia-northeast3`. Production mode로 생성 |
-| Firestore 접근 규칙 | 저장소의 `firebase/firestore.rules`를 콘솔 편집기에 입력하고 원문과 일치하는지 비교한 뒤 게시 완료 |
+| Firestore 접근 규칙 | 신고·계정 삭제·재인증 권한을 포함한 최신 `firebase/firestore.rules`를 2026-10-26 CLI로 배포 완료 |
 | 앱 설정 파일 | 공식 CLI의 `apps:sdkconfig IOS`로 받아 `C2_connecting app/GoogleService-Info.plist`에 저장. 프로젝트·Bundle ID 일치 및 Git 제외 확인 |
 | 앱 빌드 | Simulator Debug 빌드 성공. 빌드된 앱에 설정 파일이 정확히 한 번 포함되며 원본 설정과 일치함을 확인 |
 | Xcode 서명 Team | 앱의 Debug·Release 모두 `36545XSWN8`로 설정 |
@@ -47,17 +47,17 @@ Apple로 로그인은 **Apple Developer Program에 가입된 팀**의 설정이 
 
 ### 현재 앱: 네이티브 iOS 로그인
 
-이 앱은 Apple의 `AuthenticationServices`에서 받은 ID token과 nonce를 Firebase에 전달합니다. 이 네이티브 로그인만 연결할 때는 Firebase의 **Services ID, Apple Team ID, Key ID, Private Key 필드를 비워둘 수 있습니다.** Xcode의 서명 Team은 별도로 반드시 선택해야 합니다. [Firebase의 Apple 플랫폼 전용 설정 안내](https://firebase.google.com/docs/auth/unity/apple)
+이 앱은 Apple의 `AuthenticationServices`에서 받은 ID token과 nonce를 Firebase에 전달합니다. 일반 네이티브 로그인만 연결할 때는 Firebase의 **Services ID, Apple Team ID, Key ID, Private Key 필드를 비워둘 수 있습니다.** 현재 출시 빌드는 계정 삭제 시 토큰 철회도 사용하므로 아래 서버 인증 설정까지 완료했습니다. Xcode의 서명 Team은 별도로 반드시 선택해야 합니다. [Firebase의 Apple 플랫폼 전용 설정 안내](https://firebase.google.com/docs/auth/unity/apple)
 
 1. [Apple Developer의 Identifiers](https://developer.apple.com/account/resources/identifiers/list)에서 위 Bundle ID의 App ID를 찾거나 생성합니다.
 2. Account Holder 또는 Admin 권한으로 App ID의 **Sign in with Apple**을 활성화하고 Configure를 누릅니다. 기존 앱과 그룹을 구성하지 않은 신규 앱이면 **Primary App ID**로 설정하고 저장합니다.
 3. Xcode → 앱 타깃 → **Signing & Capabilities**에서 해당 App ID를 소유한 Apple Developer Program의 Team을 선택합니다. 이 브랜치에는 `Sign in with Apple` entitlement가 이미 추가되어 있습니다. 자동 서명을 사용하고, 필요하면 기기를 등록합니다. App ID의 기능을 변경했다면 프로비저닝 프로필도 갱신해야 합니다.
-4. Firebase Console → **Authentication → Sign-in method → Apple**을 활성화하고 저장합니다. 이번 네이티브 iOS 로그인에서는 Services ID와 OAuth 코드 흐름 설정을 비워둡니다.
+4. Firebase Console → **Authentication → Sign-in method → Apple**을 활성화하고 저장합니다. 계정 삭제·토큰 철회를 포함하는 현재 앱에서는 아래 Services ID와 코드 흐름 설정도 등록합니다.
 5. 실기기의 설정에서 iCloud에 로그인하고, 테스트 Apple 계정의 이중 인증을 활성화합니다. 현재 프로젝트의 최소 지원 버전은 **iOS 26.2**입니다. 일반 Run으로 앱을 실행해 확인합니다. 자동 UI 테스트는 실제 Firebase 연결을 의도적으로 비활성화합니다.
 
 [Firebase의 네이티브 Apple 로그인 구현](https://firebase.google.com/docs/auth/ios/apple) · [Apple의 Sign in with Apple 활성화](https://developer.apple.com/help/account/identifiers/enable-app-capabilities/) · [Apple의 실기기 실행 설정](https://developer.apple.com/documentation/authenticationservices/implementing-user-authentication-with-sign-in-with-apple)
 
-### 이후 웹·Android 로그인을 연결할 때
+### Services ID와 서버 인증 구성
 
 웹·Android에서 브라우저를 거치는 Apple 로그인에는 **Services ID, 도메인·Return URL과 OAuth 코드 흐름 설정**을 추가합니다.
 
@@ -67,13 +67,13 @@ Apple로 로그인은 **Apple Developer Program에 가입된 팀**의 설정이 
 
 [Apple의 웹 인증 설정](https://developer.apple.com/help/account/capabilities/configure-sign-in-with-apple-for-the-web/) · [Firebase의 웹 Apple 로그인 설정](https://firebase.google.com/docs/auth/web/apple)
 
-### 이후 네이티브 앱의 계정 삭제·Apple 토큰 철회를 연결할 때
+### 네이티브 계정 삭제·Apple 토큰 철회
 
 일반 로그인 때 비워둔 OAuth 설정과 토큰 철회에 필요한 서버 인증 설정은 구분합니다. Firebase를 통해 Apple authorization code를 교환하고 토큰을 철회하려면 **Apple Team ID, Key ID, `.p8` 개인키를 OAuth 코드 흐름 설정에 등록**해야 합니다. 개인키는 앱에 넣지 않습니다.
 
-Services ID는 웹 인증용 식별자이며, 네이티브 앱의 Bundle ID와 같은 값으로 취급하지 않습니다. 다만 현재 [Firebase iOS 공식 문서의 Token revocation 절](https://firebase.google.com/docs/auth/ios/apple#token_revocation)은 Services ID와 OAuth 코드 흐름을 함께 설정하도록 안내합니다. 따라서 네이티브 철회에 Services ID가 언제나 필수이거나 언제나 불필요하다고 여기서 단정하지 않습니다. 철회 기능을 구현할 때 해당 시점의 Firebase 요구 사항과 앱 등록 정보를 확인하고, 네이티브 authorization code로 실기기 철회가 성공하는지 검증합니다. 이번 로그인 연결을 위해 웹용 Services ID를 미리 만들 필요는 없습니다.
+Services ID는 웹 인증용 식별자이며 네이티브 Bundle ID와 별개입니다. [Firebase iOS 공식 문서의 Token revocation 절](https://firebase.google.com/docs/auth/ios/apple#token_revocation)에 맞춰 `com.Tom.C2-connecting-app.auth`를 날담 Primary App ID에 연결하고, 도메인 `naldam-dev.firebaseapp.com` 및 반환 주소 `https://naldam-dev.firebaseapp.com/__/auth/handler`를 등록했습니다. Firebase에 Team ID·Key ID·개인키를 저장하고 폼을 다시 열어 유지됨을 확인했습니다.
 
-앱에서는 재인증으로 받은 Apple authorization code를 `Auth.auth().revokeToken(withAuthorizationCode:)`에 전달한 뒤 Firebase 계정과 관련 데이터를 삭제하는 처리까지 구현해야 합니다. 콘솔의 OAuth 설정만으로 계정 삭제 기능이 완성되지는 않습니다.
+앱은 재인증으로 받은 Apple authorization code를 `Auth.auth().revokeToken(withAuthorizationCode:)`에 전달한 뒤 Firebase 계정과 공유 데이터를 삭제합니다. 철회 실패 시 삭제를 완료로 표시하지 않습니다. **실제 Apple 계정으로 로그인·철회하는 실기기 검증은 사용자 요청으로 보류**했으므로 설정 완료와 실사용 검증 완료를 구분합니다.
 
 ## 이메일·비밀번호 로그인
 
@@ -102,6 +102,16 @@ NALDAM_LIVE_PROJECT=naldam-dev node firebase/scripts/check-live-email-chat.mjs \
 App Store Connect의 비공개 심사 정보에는 전용 이메일 계정과 로그인·대화 확인 절차를 저장했습니다. 두 번째 검토 계정은 심사 메모에서만 제공합니다. 이 계정들은 실제 Firebase 인증과 권한 규칙을 사용하며, 개인 계정이나 인증을 우회하는 계정이 아닙니다. 스토어 설명도 Apple 또는 이메일 로그인으로 수정했습니다. 심사 정보 저장과 실제 심사 제출은 별개의 단계입니다.
 
 이메일 인증을 포함한 버전 1.0 빌드 2는 2026-10-26 App Store Connect 업로드에 성공했습니다. 외부 바이너리인 FirebaseFirestoreInternal, absl, grpc, grpcpp, openssl_grpc의 dSYM 누락 경고가 있었고 앱 자체 dSYM은 아카이브에 포함됐습니다. 외부 라이브러리 내부의 충돌 분석에는 제약이 남습니다. 실제 Apple 로그인, 두 실기기 간 검증, TestFlight 설치, 계정 삭제·신고 기능 등 출시 전 확인 항목은 GitHub 이슈 #20에서 추적합니다.
+
+### 2026-10-26 제출 준비 보완
+
+빌드 3 작업에는 이용 수칙 동의, 기본 유해 표현 필터, 비공개 신고·차단, 재인증을 포함한 앱 내 계정 삭제를 추가했다. 계정 삭제는 양측의 공유 대화 전체를 삭제하며 기기의 비공개 일기·관심사·사진은 남긴다. 삭제 중단 시 새 접촉을 막고 재시도할 수 있다. 운영 절차는 [COMMUNITY_OPERATIONS.md](COMMUNITY_OPERATIONS.md)에 정리했다.
+
+단위 테스트 51개, Firestore 규칙 테스트 25개, 보관 기간 계산 테스트 1개가 통과했다. 실제 Firebase 전용 테스트 계정에서 시뮬레이터 신고·차단·잘못된 비밀번호 거부·정상 재인증 후 계정 삭제를 확인했고, 서버에서 인증 계정·공개 프로필·공유 방의 삭제도 확인했다. 두 심사용 계정의 실시간 대화 재검증 6개 항목도 통과했다. 심사용 계정은 삭제 테스트에 사용하지 않았다.
+
+공개 웹사이트의 개인정보처리방침 1.2와 이용약관을 배포했고 App Store Connect에 고객 지원 정보를 추가해 총 9개 데이터 유형을 게시했다. 광고 추적은 하지 않는다. 운영 도구의 신고 조회·정리 미리보기는 확인했으나 전체 운영 데이터 정리는 실행하지 않았다.
+
+가입 폼은 입력과 재확인을 두 단계로 나누고 iOS 기본 보안 입력을 사용한다. 최종 이메일 폼 UI 테스트 3개와 실제 서버 신고·삭제 UI 재검증 1개가 통과했으며 폐기용 두 계정을 모두 정리했다. 빌드 3 서명 아카이브도 성공했다. 명령 도구의 계정 접근 오류가 남아 Xcode Organizer에서 업로드했고 2026-10-26 14:04 KST 빌드 3의 “Uploaded to Apple” 상태를 확인했다. Firebase 사전 빌드 라이브러리 5개의 dSYM 누락 경고가 있으며 앱 자체 dSYM은 포함됐다. App Store Connect의 처리·빌드 선택 확인은 진행 중이다. Apple 계정 삭제용 키는 사용자 승인 후 교체하고 비공개 파일로 보관했다. Apple Services ID와 인증 도메인을 등록했으며 Firebase OAuth 설정을 저장·재열기해 확인했다. 실기기 Apple 로그인·토큰 해제 및 두 실기기 검증은 사용자가 추후 진행하기로 했다. 이 항목을 실제 검증 완료로 간주하지 않는다. 심사 제출은 사용자가 직접 누르도록 남긴다.
 
 [Firebase 이메일 인증 구현](https://firebase.google.com/docs/auth/ios/password-auth)
 
@@ -152,6 +162,6 @@ npm test
 
 ## 운영 전에 이어서 준비할 것
 
-공개 배포 전에는 신고·운영 대응, 계정 및 관련 데이터 삭제, 이용약관·개인정보 처리방침을 완성해야 합니다. 알림을 추가할 때는 FCM/APNs와 신뢰할 수 있는 서버에서 메시지 알림을 보내는 처리가 별도로 필요합니다. Firebase 사용량·할당량은 콘솔에서 확인하며, 이번 단계가 무제한 무료 이용을 보장하는 것은 아닙니다.
+신고·차단, 앱 내 계정 삭제, 이용약관·개인정보 처리방침을 구현·배포했습니다. 운영자는 COMMUNITY_OPERATIONS.md의 신고 24시간 확인 및 보관 기간 절차를 실제로 수행해야 합니다. 자동 운영·메일 알림은 아직 없습니다. 알림을 추가할 때는 FCM/APNs와 신뢰할 수 있는 서버에서 메시지 알림을 보내는 처리가 별도로 필요합니다. Firebase 사용량·할당량은 콘솔에서 확인하며, 이번 단계가 무제한 무료 이용을 보장하는 것은 아닙니다.
 
 [Firebase Apple SDK 릴리스](https://firebase.google.com/support/release-notes/ios) · [Firestore 사용량과 한도](https://firebase.google.com/docs/firestore/quotas)

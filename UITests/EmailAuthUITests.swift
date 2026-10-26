@@ -22,10 +22,11 @@ final class EmailAuthUITests: XCTestCase {
         email.typeText("form-test@example.invalid")
         let password = app.secureTextFields["auth.email.password"]
         password.tap()
-        password.typeText(UUID().uuidString)
+        password.typeText("form-validation-password-A9!")
         hideKeyboard()
         app.buttons["auth.email.createAccount"].tap()
-        XCTAssertTrue(app.secureTextFields["auth.email.confirmPassword"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.secureTextFields["auth.email.password"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.secureTextFields["auth.email.confirmPassword"].exists)
         XCTAssertFalse(app.buttons["auth.email.submit"].isEnabled)
         XCTAssertEqual(email.value as? String, "form-test@example.invalid")
         app.buttons["auth.email.backToSignIn"].tap()
@@ -45,19 +46,47 @@ final class EmailAuthUITests: XCTestCase {
         email.typeText("form-test@example.invalid")
         let password = app.secureTextFields["auth.email.password"]
         password.tap()
-        password.typeText(UUID().uuidString)
-        hideKeyboard()
-        let confirmation = app.secureTextFields["auth.email.confirmPassword"]
-        confirmation.tap()
-        confirmation.typeText(UUID().uuidString)
+        password.typeText("form-validation-password-A9!")
         hideKeyboard()
         app.buttons["auth.email.submit"].tap()
-        XCTAssertTrue(app.staticTexts["두 비밀번호가 같지 않아요. 다시 확인해 주세요."].waitForExistence(timeout: 5))
+        // The OS may offer to save this fake test password between form steps.
+        if app.buttons["지금 안 함"].waitForExistence(timeout: 2) { app.buttons["지금 안 함"].tap() }
+        XCTAssertTrue(app.secureTextFields["auth.email.confirmPassword"].waitForExistence(timeout: 5), "Full password validation: \(app.descendants(matching: .any)["auth.email.error"].firstMatch.label)")
+        let confirmation = app.secureTextFields["auth.email.confirmPassword"]
+        confirmation.tap()
+        confirmation.typeText("form-validation-password-B9!")
+        hideKeyboard()
+        app.buttons["auth.email.submit"].tap()
+        hideKeyboard()
+        let validation = app.descendants(matching: .any)["auth.email.error"].firstMatch
+        XCTAssertTrue(validation.waitForExistence(timeout: 5))
+        XCTAssertTrue(validation.label.contains("두 비밀번호가 같지 않아요"), "Validation: \(validation.label)")
         hideKeyboard()
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "email-signup-validation"
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    func testValidSignUpCanRetryAfterUnavailableConnection() {
+        app.buttons["auth.email.createAccount"].tap()
+        let email = app.textFields["auth.email.address"]
+        email.tap(); email.typeText("form-test@example.invalid")
+        let password = app.secureTextFields["auth.email.password"]
+        password.tap(); password.typeText("form-validation-password-A9!")
+        hideKeyboard()
+        app.buttons["auth.email.submit"].tap()
+        if app.buttons["지금 안 함"].waitForExistence(timeout: 2) { app.buttons["지금 안 함"].tap() }
+        let confirmation = app.secureTextFields["auth.email.confirmPassword"]
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        confirmation.tap(); confirmation.typeText("form-validation-password-A9!")
+        hideKeyboard()
+        app.buttons["auth.email.submit"].tap()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "아직 계정 연결을 준비 중")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.secureTextFields["auth.email.password"].exists)
+        XCTAssertFalse(app.secureTextFields["auth.email.confirmPassword"].exists)
+        XCTAssertFalse(app.buttons["auth.email.submit"].isEnabled)
+        XCTAssertEqual(email.value as? String, "form-test@example.invalid")
     }
 
     private func hideKeyboard() {

@@ -81,4 +81,32 @@ struct ChatLocalCacheTests {
             #expect(restored.contents.drafts["another-room"] == "다른 초안")
         }
     }
+    @Test("계정 삭제는 그 계정의 초안만 지우며 재시도할 수 있다")
+    func erasesOnlyDeletedAccount() throws {
+        try inDirectory { directory in
+            let alice = ChatLocalCache(userID: "alice", directory: directory)
+            let bob = ChatLocalCache(userID: "bob", directory: directory)
+            alice.change { $0.drafts["room"] = "삭제할 초안" }
+            bob.change { $0.drafts["room"] = "다른 계정 초안" }
+            try alice.erase()
+            try alice.erase()
+            #expect(!FileManager.default.fileExists(atPath: alice.fileURL.path))
+            #expect(alice.contents.drafts.isEmpty)
+            #expect(ChatLocalCache(userID: "bob", directory: directory).contents.drafts["room"] == "다른 계정 초안")
+        }
+    }
+
+    @Test("손상된 초안도 명시적인 계정 삭제에서는 제거한다")
+    func erasesCorruptCache() throws {
+        try inDirectory { directory in
+            let first = ChatLocalCache(userID: "alice", directory: directory)
+            try Data("invalid".utf8).write(to: first.fileURL)
+            let corrupt = ChatLocalCache(userID: "alice", directory: directory)
+            #expect(corrupt.errorMessage != nil)
+            try corrupt.erase()
+            #expect(corrupt.errorMessage == nil)
+            #expect(!FileManager.default.fileExists(atPath: first.fileURL.path))
+        }
+    }
+
 }

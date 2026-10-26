@@ -64,7 +64,7 @@ try {
     await writeFile(credentialPath, JSON.stringify(accounts, null, 2), { mode: 0o600 });
     const reference = doc(db[index], 'profiles', account.uid);
     const previous = await getDocFromServer(reference);
-    await setDoc(reference, { name: account.name, interests: ['기록', '산책', '독서'], createdAt: previous.exists() ? previous.data().createdAt : serverTimestamp(), updatedAt: serverTimestamp() });
+    await setDoc(reference, { name: account.name, interests: ['기록', '산책', '독서'], termsVersion: 1, createdAt: previous.exists() ? previous.data().createdAt : serverTimestamp(), updatedAt: serverTimestamp() });
   }
   const [a, b] = accounts.accounts;
   assert.notEqual(a.uid, b.uid);

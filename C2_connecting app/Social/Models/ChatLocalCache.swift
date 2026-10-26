@@ -41,6 +41,11 @@ final class ChatLocalCache {
         }
     }
 
+    func erase() throws {
+        if FileManager.default.fileExists(atPath: fileURL.path) { try FileManager.default.removeItem(at: fileURL) }
+        contents = Contents(); writable = true; errorMessage = nil
+    }
+
     @discardableResult
     func change(_ edit: (inout Contents) -> Void) -> Bool {
         guard writable else { return false }

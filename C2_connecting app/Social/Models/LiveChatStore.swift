@@ -18,6 +18,9 @@ final class LiveChatStore: ObservableObject {
     @Published private(set) var currentUserID: String?
     @Published private(set) var hasOlderMessages = false
     @Published private(set) var hasMoreProfiles = false
+    @Published private(set) var deletionPending = false
+    @Published private(set) var suspended = false
+    @Published private(set) var publishedTermsVersion = 0
     private var database: Firestore?
     private var sessionSubscription: AnyCancellable?
     private var listeners: [ListenerRegistration] = []
@@ -45,6 +48,7 @@ final class LiveChatStore: ObservableObject {
 
     #if DEBUG
     private func loadScreenshotFixtures() {
+        publishedTermsVersion = CommunitySafety.termsVersion
         publishedProfile = ChatProfile(id: "screenshot-owner", name: "하루", interests: ["러닝", "기록", "산책", "음악", "독서", "사진"])
         profiles = [
             ChatProfile(id: "screenshot-forest", name: "숲", interests: ["러닝", "기록", "산책", "독서", "사진"]),
@@ -94,6 +98,7 @@ final class LiveChatStore: ObservableObject {
     func room(for personID: String) -> ChatRoom? { rooms.first { $0.person.id == personID } }
 
     func reconnect() { connect(userID: AppleSession.shared.userID) }
+    func suspendForDeletion() { connect(userID: nil) }
 
     private func connect(userID: String?) {
         generation = UUID()
@@ -102,6 +107,7 @@ final class LiveChatStore: ObservableObject {
         roomListeners.values.flatMap { $0 }.forEach { $0.remove() }; roomListeners = [:]
         latestListeners.values.forEach { $0.remove() }; latestListeners = [:]
         database = nil; cache = nil; currentUserID = userID
+        deletionPending = false; suspended = false; publishedTermsVersion = 0
         profiles = []; rooms = []; publishedProfile = nil; profileLoaded = false
         roomData = [:]; knownProfiles = [:]; discoveryIDs = []; blockedIDs = []
         states = [:]; latestMessages = [:]; writingRead = []; sendingIDs = []
@@ -120,6 +126,18 @@ final class LiveChatStore: ObservableObject {
         isLoading = true
         let token = generation
 
+        listeners.append(db.collection("accountDeletions").document(userID).addSnapshotListener { [weak self] snapshot, _ in
+            Task { @MainActor in
+                guard let self, self.generation == token else { return }
+                self.deletionPending = snapshot?.exists ?? false
+            }
+        })
+        listeners.append(db.collection("accountRestrictions").document(userID).addSnapshotListener { [weak self] snapshot, _ in
+            Task { @MainActor in
+                guard let self, self.generation == token else { return }
+                self.suspended = snapshot?.exists ?? false
+            }
+        })
         listeners.append(db.collection("profiles").document(userID).addSnapshotListener(includeMetadataChanges: true) { [weak self] snapshot, error in
             Task { @MainActor in
                 guard let self, self.generation == token else { return }
@@ -128,6 +146,7 @@ final class LiveChatStore: ObservableObject {
                 // An empty cache is not proof that this account has no public profile.
                 if !snapshot.exists && snapshot.metadata.isFromCache { return }
                 self.publishedProfile = Self.profile(snapshot)
+                self.publishedTermsVersion = snapshot.data()?["termsVersion"] as? Int ?? 0
                 self.profileLoaded = true
             }
         })
@@ -268,6 +287,10 @@ final class LiveChatStore: ObservableObject {
     func publishProfile(name: String, interests: [String]) async -> Bool {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let tags = ChatValidation.interests(interests)
+        guard CommunitySafety.permits(name), tags.allSatisfy(CommunitySafety.permits) else {
+            errorMessage = "다른 사람을 존중하는 이름과 관심사로 바꿔 주세요."
+            return false
+        }
         guard !name.isEmpty, name.count <= 12, name.utf16.count <= 1_024,
               tags.allSatisfy({ InterestTagCatalog.customTag(from: $0) != nil && $0.utf16.count <= 256 }),
               let userID = currentUserID, let db = database else {
@@ -280,7 +303,7 @@ final class LiveChatStore: ObservableObject {
             _ = try await db.runTransaction { transaction, errorPointer -> Any? in
                 do {
                     let existing = try transaction.getDocument(reference)
-                    var data: [String: Any] = ["name": name, "interests": tags, "updatedAt": FieldValue.serverTimestamp()]
+                    var data: [String: Any] = ["name": name, "interests": tags, "termsVersion": CommunitySafety.termsVersion, "updatedAt": FieldValue.serverTimestamp()]
                     data["createdAt"] = existing.data()?["createdAt"] ?? FieldValue.serverTimestamp()
                     transaction.setData(data, forDocument: reference)
                     return nil
@@ -490,6 +513,10 @@ final class LiveChatStore: ObservableObject {
     /// True means safely queued locally; the bubble remains sending until the server confirms it.
     @discardableResult
     func send(_ text: String, in roomID: String) -> Bool {
+        guard CommunitySafety.permits(text) else {
+            errorMessage = "욕설·위협 등은 보낼 수 없어요. 서로 존중하는 표현으로 바꿔 주세요."
+            return false
+        }
         guard let body = ChatValidation.message(text), let cache, currentUserID != nil,
               let room = room(id: roomID), room.status == .active, !room.isBlocked, !room.isArchived else { return false }
         let item = ChatOutboxItem(id: UUID().uuidString, roomID: roomID, body: body, createdAt: Date(), delivery: .sending)
@@ -576,14 +603,14 @@ final class LiveChatStore: ObservableObject {
     private static func profile(_ snapshot: DocumentSnapshot) -> ChatProfile? {
         guard let data = snapshot.data(), let name = data["name"] as? String,
               let interests = data["interests"] as? [String] else { return nil }
-        let tags = ChatValidation.interests(interests).filter { InterestTagCatalog.customTag(from: $0) != nil }
-        return ChatProfile(id: snapshot.documentID, name: String(name.prefix(12)), interests: tags)
+        let tags = ChatValidation.interests(interests).filter { InterestTagCatalog.customTag(from: $0) != nil && CommunitySafety.permits($0) }
+        return ChatProfile(id: snapshot.documentID, name: CommunitySafety.permits(name) ? String(name.prefix(12)) : "숨겨진 프로필", interests: tags)
     }
 
     private static func message(_ snapshot: DocumentSnapshot, userID: String) -> ChatMessage? {
         guard let data = snapshot.data(), let body = data["body"] as? String,
               let sender = data["senderID"] as? String else { return nil }
-        return ChatMessage(id: snapshot.documentID, body: body,
+        return ChatMessage(id: snapshot.documentID, body: CommunitySafety.permits(body) ? body : "안전한 대화를 위해 숨긴 메시지예요. 길게 눌러 신고할 수 있어요.",
                            createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
                            isMine: sender == userID, delivery: snapshot.metadata.hasPendingWrites ? .sending : .sent)
     }

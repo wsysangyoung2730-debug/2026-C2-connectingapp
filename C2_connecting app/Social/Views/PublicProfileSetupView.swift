@@ -5,12 +5,22 @@ import SwiftData
 struct SocialAccessGate<Content: View>: View {
     @ObservedObject private var session = AppleSession.shared
     @ObservedObject private var store = LiveChatStore.shared
+    @State private var showDeletion = false
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         Group {
             if session.userID == nil {
                 SignInGateView()
+            } else if store.deletionPending || store.suspended {
+                VStack(spacing: 20) {
+                    Text(store.deletionPending ? "계정 삭제를 마무리해 주세요" : "계정 이용이 제한되었어요").font(.title3.bold())
+                    Text(store.deletionPending ? "삭제가 중단되어 새 대화를 시작할 수 없어요. 본인 확인 후 나머지 삭제를 이어갈 수 있어요." : "안전한 이용을 위해 연결 기능이 제한되어 있어요. 문의처에서 이의를 제기할 수 있어요.")
+                        .font(.subheadline)
+                    Button(store.deletionPending ? "삭제 계속하기" : "계정 삭제") { showDeletion = true }
+                    NaldamLegalLinks()
+                    Button("로그아웃") { session.signOut() }
+                }.padding(24).frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.appBackground)
             } else if store.currentUserID != session.userID || !store.profileLoaded {
                 VStack(spacing: 16) {
                     ProgressView("프로필을 불러오고 있어요")
@@ -22,12 +32,13 @@ struct SocialAccessGate<Content: View>: View {
                         .font(.footnote).frame(minHeight: 44)
                 }.padding(24).frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.appBackground)
-            } else if store.publishedProfile == nil {
-                PublicProfileSetupView()
+            } else if store.publishedProfile == nil || store.publishedTermsVersion < CommunitySafety.termsVersion {
+                PublicProfileSetupView(isEditing: store.publishedProfile != nil)
             } else {
                 content()
             }
         }
+        .fullScreenCover(isPresented: $showDeletion) { DeleteAccountView() }
     }
 }
 
@@ -40,6 +51,7 @@ struct PublicProfileSetupView: View {
     @State private var isSaving = false
     @State private var saveError: String?
     @State private var useLocalInterests = false
+    @State private var acceptedRules = false
     var isEditing = false
     var onSaved: (() -> Void)? = nil
 
@@ -89,6 +101,13 @@ struct PublicProfileSetupView: View {
                 Label("공개되는 정보는 이름과 관심사뿐이에요. 개인 기록과 기기에 저장한 사진은 공개되지 않아요.", systemImage: "lock")
                     .font(.footnote).foregroundStyle(Color.naldamSecondary)
                 SocialStorageWarning(message: saveError ?? store.errorMessage)
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("함께 지키는 약속").font(.headline)
+                    Text(CommunitySafety.terms).font(.footnote).foregroundStyle(Color.naldamSecondary)
+                    Toggle("이용약관과 커뮤니티 이용 수칙에 동의해요", isOn: $acceptedRules)
+                        .font(.subheadline).accessibilityIdentifier("social.profile.terms")
+                    Link("이용약관 읽기", destination: NaldamLegal.termsURL).font(.footnote)
+                }.naldamCard()
                 Button {
                     isSaving = true
                     saveError = nil
@@ -103,7 +122,7 @@ struct PublicProfileSetupView: View {
                     else { Text(isEditing ? "변경한 프로필 공개하기" : "이 프로필로 시작하기") }
                 }
                 .buttonStyle(NaldamPrimaryButtonStyle())
-                .disabled(validName.isEmpty || validName.count > 12 || isSaving)
+                .disabled(validName.isEmpty || validName.count > 12 || isSaving || !acceptedRules)
                 .accessibilityIdentifier("social.profile.publish")
                 if !isEditing {
                     Button("나중에 할게요 · 로그아웃") { session.signOut() }
@@ -113,7 +132,10 @@ struct PublicProfileSetupView: View {
         }
         .background(Color.appBackground)
         .navigationTitle("공개 프로필").navigationBarTitleDisplayMode(.inline)
-        .onAppear { name = store.publishedProfile?.name ?? localName }
+        .onAppear {
+            name = store.publishedProfile?.name ?? localName
+            acceptedRules = store.publishedTermsVersion >= CommunitySafety.termsVersion
+        }
         .disabled(isSaving)
     }
 }

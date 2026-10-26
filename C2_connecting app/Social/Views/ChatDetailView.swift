@@ -11,6 +11,7 @@ struct ChatDetailView: View {
     @State private var chatToken: UUID?
     @State private var showingBlockConfirmation = false
     @State private var showingLeaveConfirmation = false
+    @State private var reportTarget: ContentReportTarget?
     @FocusState private var composerFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
     @State private var loadingOlder = false
@@ -49,6 +50,14 @@ struct ChatDetailView: View {
                         }
                         ForEach(store.messages) { message in
                             ChatMessageBubble(message: message) { store.retry(messageID: message.id) }
+                                .contextMenu {
+                                    if !message.isMine {
+                                        Button("이 메시지 신고", systemImage: "flag", role: .destructive) {
+                                            reportTarget = ContentReportTarget(personID: person.id, personName: person.name,
+                                                roomID: conversationID, messageID: message.id)
+                                        }
+                                    }
+                                }
                                 .id(message.id)
                         }
                         if canCompose && store.messages.count < 4 && draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -87,6 +96,11 @@ struct ChatDetailView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    Button("신고하기", systemImage: "flag", role: .destructive) {
+                        if let person = conversation?.person {
+                            reportTarget = ContentReportTarget(personID: person.id, personName: person.name, roomID: conversationID)
+                        }
+                    }
                     Button("프로필 차단", systemImage: "hand.raised", role: .destructive) { showingBlockConfirmation = true }
                     Button("대화 숨기기", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) { showingLeaveConfirmation = true }
                 } label: { Image(systemName: "ellipsis") }
@@ -146,6 +160,7 @@ struct ChatDetailView: View {
             Text("내 목록에서만 숨겨져요. 발견에서 같은 사람의 대화를 다시 열 수 있어요.")
         }
         .disabled(managing)
+        .sheet(item: $reportTarget) { ContentReportView(target: $0) }
     }
 
     private func persistDraftIfNeeded() {
@@ -217,7 +232,7 @@ struct ChatDetailView: View {
                 .buttonStyle(.plain).disabled(!canSend)
                 .accessibilityLabel("메시지 보내기")
             }
-            Text("메시지는 두 사람에게만 보여요")
+            Text("신고한 내용은 운영자가 확인할 수 있어요")
                 .font(.caption2).foregroundStyle(Color.naldamSecondary)
         }
         .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 8)

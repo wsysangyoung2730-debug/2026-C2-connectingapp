@@ -158,6 +158,7 @@ struct DiscoveryView: View {
 
 struct PublicPersonView: View {
     let person: ChatProfile
+    @State private var reportTarget: ContentReportTarget?
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -183,5 +184,13 @@ struct PublicPersonView: View {
         .background(Color.appBackground)
         .navigationTitle("공개 프로필").navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar).naldamTabBarHidden()
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("신고·차단", systemImage: "flag") {
+                    reportTarget = ContentReportTarget(personID: person.id, personName: person.name)
+                }
+            }
+        }
+        .sheet(item: $reportTarget) { ContentReportView(target: $0) }
     }
 }

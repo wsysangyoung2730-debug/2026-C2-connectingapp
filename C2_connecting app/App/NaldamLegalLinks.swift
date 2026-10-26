@@ -3,6 +3,7 @@ import SwiftUI
 enum NaldamLegal {
     static let privacyURL = URL(string: "https://connectingapp-site.vercel.app/")!
     static let supportURL = URL(string: "https://connectingapp-site.vercel.app/#contact")!
+    static let termsURL = URL(string: "https://connectingapp-site.vercel.app/#terms")!
 }
 
 struct NaldamLegalLinks: View {
@@ -20,5 +21,7 @@ struct NaldamLegalLinks: View {
             .frame(minHeight: 44).accessibilityIdentifier("legal.privacy")
         Link("문의 및 신고", destination: NaldamLegal.supportURL)
             .frame(minHeight: 44).accessibilityIdentifier("legal.support")
+        Link("이용약관", destination: NaldamLegal.termsURL)
+            .frame(minHeight: 44).accessibilityIdentifier("legal.terms")
     }
 }
