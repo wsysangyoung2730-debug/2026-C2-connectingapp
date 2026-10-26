@@ -1,37 +1,14 @@
 import SwiftUI
 
-struct SocialSampleBanner: View {
-    var compact = false
-
-    var body: some View {
-        Label {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("샘플 체험").font(.caption.weight(.semibold))
-                Text(compact ? "실제 상대에게 전송되지 않아요. 이 기기에만 저장돼요." : "아래 사람과 이야기는 가상의 예시예요. 대화 요청과 메시지는 이 기기에만 저장되며, 실제 사용자에게 전달되지 않아요.")
-                    .font(.caption).fixedSize(horizontal: false, vertical: true)
-            }
-        } icon: {
-            Image(systemName: "flask").foregroundStyle(Color.naldamAccent)
-        }
-        .foregroundStyle(Color.naldamSecondary)
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.naldamAccent.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
-        .accessibilityElement(children: .combine)
-    }
-}
-
 struct SocialStorageWarning: View {
     let message: String?
     var body: some View {
         if let message {
             Label(message, systemImage: "exclamationmark.triangle")
-                .font(.footnote)
-                .foregroundStyle(Color.naldamInk)
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .font(.footnote).foregroundStyle(Color.naldamInk)
+                .padding(14).frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
-                .accessibilityLabel("저장 오류. \(message)")
+                .accessibilityElement(children: .combine)
         }
     }
 }
@@ -39,40 +16,44 @@ struct SocialStorageWarning: View {
 struct SocialInterestTags: View {
     let tags: [String]
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 6) { labels }
-            VStack(alignment: .leading, spacing: 6) { labels }
-        }
-    }
-    private var labels: some View {
-        ForEach(tags, id: \.self) { tag in
-            Text(tag)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(Color.naldamInk)
-                .padding(.horizontal, 10).padding(.vertical, 5)
-                .background(Color.naldamLine.opacity(0.6), in: Capsule())
+        InterestFlowLayout(spacing: 6) {
+            ForEach(tags, id: \.self) { tag in
+                Text("#\(tag)").font(.caption.weight(.medium))
+                    .foregroundStyle(Color.naldamAccent)
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .background(Color.naldamSoft, in: Capsule())
+            }
         }
     }
 }
 
+struct ChatPersonPortrait: View {
+    let person: ChatProfile
+    var size: CGFloat = 56
+    var body: some View {
+        Text(String(person.name.prefix(1)))
+            .font(.system(size: size * 0.40, weight: .medium, design: .rounded))
+            .foregroundStyle(Color.naldamAccent)
+            .frame(width: size, height: size * 1.08)
+            .background(Color.naldamSoft, in: RoundedRectangle(cornerRadius: size * 0.32))
+            .accessibilityHidden(true)
+    }
+}
+
 struct SocialPersonHeading: View {
-    let person: SamplePerson
+    let person: ChatProfile
     var subtitle: String? = nil
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            NaldamAvatar(name: person.name, size: 56)
+            ChatPersonPortrait(person: person, size: 52)
             VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(person.name).font(.title3.weight(.bold))
-                    Text("샘플").font(.caption2.weight(.medium)).foregroundStyle(Color.naldamSecondary)
-                }
+                Text(person.name).font(.title3.weight(.bold))
                 if let subtitle {
                     Text(subtitle).font(.footnote).foregroundStyle(Color.naldamSecondary)
                 } else {
                     SocialInterestTags(tags: person.interests)
                 }
             }
-        }
-        .foregroundStyle(Color.naldamInk)
+        }.foregroundStyle(Color.naldamInk)
     }
 }

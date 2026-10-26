@@ -17,8 +17,6 @@ struct InterestPaperShape: Shape {
 }
 
 struct InterestEnvelopePocket: View {
-    private let kraft = Color(red: 0.84, green: 0.74, blue: 0.62)
-
     var body: some View {
         GeometryReader { geometry in
             let width = geometry.size.width
@@ -32,7 +30,7 @@ struct InterestEnvelopePocket: View {
                     path.addLine(to: CGPoint(x: 0, y: height))
                     path.closeSubpath()
                 }
-                .fill(LinearGradient(colors: [kraft.opacity(0.82), kraft], startPoint: .top, endPoint: .bottom))
+                .fill(LinearGradient(colors: [.naldamEnvelopeLight, .naldamEnvelope], startPoint: .top, endPoint: .bottom))
 
                 Path { path in
                     path.move(to: CGPoint(x: 0, y: height))
@@ -43,7 +41,7 @@ struct InterestEnvelopePocket: View {
                     )
                     path.addLine(to: CGPoint(x: width, y: height))
                 }
-                .stroke(Color(red: 0.63, green: 0.49, blue: 0.35).opacity(0.48), lineWidth: 0.8)
+                .fill(Color.naldamEnvelope)
             }
         }
     }
@@ -58,19 +56,22 @@ struct PaperInterestChip: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
-                Text(title)
+                if selected && selectionMark {
+                    Image(systemName: "checkmark").font(.system(size: 12, weight: .medium))
+                }
+                Text(selectionMark && !selected ? "# \(title)" : title)
                     .font(.subheadline)
                     .fixedSize(horizontal: true, vertical: false)
-                if selected {
-                    Image(systemName: selectionMark ? "checkmark" : "xmark")
+                if selected && !selectionMark {
+                    Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .semibold))
                 }
             }
-            .foregroundStyle(selected ? Color.naldamAccent : Color.naldamInk)
+            .foregroundStyle(selected ? Color.naldamAccent : Color.naldamSecondary)
             .padding(.horizontal, 14)
             .frame(minHeight: 44)
             .background(selected ? Color.naldamAccent.opacity(0.10) : Color.appBackground, in: Capsule())
-            .overlay(Capsule().stroke(selected ? Color.naldamAccent.opacity(0.28) : Color.naldamLine.opacity(0.5), lineWidth: 0.75))
+            .overlay(Capsule().stroke(selected ? Color.naldamAccent : Color.naldamLine, lineWidth: 0.8))
         }
         .buttonStyle(.plain)
     }
